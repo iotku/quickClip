@@ -59,20 +59,20 @@ func loop(w *app.Window) error {
 			gtx := app.NewContext(&ops, e)
 			if playButton.Clicked(gtx) && !isPlaying {
 				isPlaying = true
-				go playAudio()
+				go playAudio(w)
 			}
 			render(gtx, th, ops, e)
 		}
 	}
 }
 
-func playAudio() {
+func playAudio(w *app.Window) {
 	// Read the mp3 file into memory
 	file, err := os.Open("./my-file.mp3")
 	if err != nil {
 		panic("opening my-file.mp3 failed: " + err.Error())
 	}
-	
+
 	// Decode file. This process is done as the file plays so it won't
 	// load the whole thing into memory.
 	decodedMp3, err := mp3.NewDecoder(file)
@@ -114,7 +114,7 @@ func playAudio() {
 
 		// Update audioData with the decoded samples for visualization
 		updateVisualization(buffer[:n]) // Only send the filled part of the buffer
-
+		w.Invalidate()                  // Request a redraw of the window
 		time.Sleep(time.Millisecond * 50)
 	}
 
@@ -133,32 +133,6 @@ func playAudio() {
 	}
 	// Once finished, reset the visualization
 	resetVisualization()
-}
-func renderWaveform(gtx layout.Context, width, height int) layout.Dimensions {
-	// Draw the waveform
-	maxHeight := height
-	numSamples := len(audioData)
-	sampleWidth := width / numSamples
-
-	for i, sample := range audioData {
-		// Map the sample to a positive value for visualization
-		// Scale the sample and make it fit within the visualization height
-		normalizedSample := float32(sample) / float32(1<<15) // Normalize to -1..1
-		barHeight := int(normalizedSample * float32(maxHeight/2))
-
-		// Draw each sample as a vertical line/bar
-		// Clip and paint the rectangle
-		rect := image.Rect(i*sampleWidth, maxHeight/2-barHeight, (i+1)*sampleWidth, maxHeight/2+barHeight)
-
-		// Clip the rectangle region
-		clip.Rect{Max: rect.Max, Min: rect.Min}.Push(gtx.Ops)
-
-		// Fill the clipped area with the color
-		paint.ColorOp{Color: color.NRGBA{R: 255, G: 0, B: 0, A: 255}}.Add(gtx.Ops)
-		paint.PaintOp{}.Add(gtx.Ops)
-	}
-
-	return layout.Dimensions{Size: image.Point{X: width, Y: height}}
 }
 
 func render(gtx layout.Context, th *material.Theme, ops op.Ops, e app.FrameEvent) {
@@ -217,10 +191,38 @@ func render(gtx layout.Context, th *material.Theme, ops op.Ops, e app.FrameEvent
 }
 
 func updateVisualization(data []byte) {
-	// Store the latest audio data for visualization (this can be modified to limit the number of samples)
-	fmt.Println("Updating visualization with audio data")
+	// Store the raw byte data directly for visualization
 	audioData = data
-	fmt.Println(audioData)
+	fmt.Println("Updating visualization with audio data", audioData)
+}
+
+func renderWaveform(gtx layout.Context, width, height int) layout.Dimensions {
+	maxHeight := height
+	numSamples := len(audioData)
+	if numSamples == 0 {
+		return layout.Dimensions{}
+	}
+
+	sampleWidth := width / numSamples
+
+	for i, sample := range audioData {
+		// Normalize the byte value to fit the range of visualization height
+		// Byte values range from 0 to 255, so we map them to the range -maxHeight/2 to maxHeight/2
+		normalizedSample := float32(sample) / 255.0 // Normalize to 0..1
+		barHeight := int(normalizedSample * float32(maxHeight/2))
+
+		// Draw each sample as a vertical line/bar
+		rect := image.Rect(i*sampleWidth, maxHeight/2-barHeight, (i+1)*sampleWidth, maxHeight/2+barHeight)
+
+		// Clip the rectangle region
+		clip.Rect{Max: rect.Max, Min: rect.Min}.Push(gtx.Ops)
+
+		// Fill the clipped area with the color (red)
+		paint.ColorOp{Color: color.NRGBA{R: 255, G: 0, B: 0, A: 255}}.Add(gtx.Ops)
+		paint.PaintOp{}.Add(gtx.Ops)
+	}
+
+	return layout.Dimensions{Size: image.Point{X: width, Y: height}}
 }
 
 func resetVisualization() {
