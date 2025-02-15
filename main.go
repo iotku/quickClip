@@ -5,9 +5,13 @@ package main
 // A simple Gio program. See https://gioui.org for more information.
 
 import (
-	"bytes"
+	"fmt"
+	"gioui.org/op/clip"
+	"gioui.org/op/paint"
 	"github.com/ebitengine/oto/v3"
 	"github.com/hajimehoshi/go-mp3"
+	"image"
+	"image/color"
 	"log"
 	"os"
 	"time"
@@ -26,6 +30,7 @@ type C = layout.Context
 type D = layout.Dimensions
 
 var backButton, fwdButton, playButton, stopButton widget.Clickable
+var audioData []byte
 
 func main() {
 	go func() {
@@ -63,16 +68,14 @@ func loop(w *app.Window) error {
 
 func playAudio() {
 	// Read the mp3 file into memory
-	fileBytes, err := os.ReadFile("./my-file.mp3")
+	file, err := os.Open("./my-file.mp3")
 	if err != nil {
-		panic("reading my-file.mp3 failed: " + err.Error())
+		panic("opening my-file.mp3 failed: " + err.Error())
 	}
-
-	// Convert the pure bytes into a reader object that can be used with the mp3 decoder
-	fileBytesReader := bytes.NewReader(fileBytes)
-
-	// Decode file
-	decodedMp3, err := mp3.NewDecoder(fileBytesReader)
+	
+	// Decode file. This process is done as the file plays so it won't
+	// load the whole thing into memory.
+	decodedMp3, err := mp3.NewDecoder(file)
 	if err != nil {
 		panic("mp3.NewDecoder failed: " + err.Error())
 	}
@@ -80,19 +83,13 @@ func playAudio() {
 	// Prepare an Oto context (this will use your default audio device) that will
 	// play all our sounds. Its configuration can't be changed later.
 
-	op := &oto.NewContextOptions{}
+	op := &oto.NewContextOptions{
+		SampleRate:   44100,                   // Set sample rate for playback
+		ChannelCount: 2,                       // Stereo
+		Format:       oto.FormatSignedInt16LE, // 16-bit signed little-endian PCM
+	}
 
-	// Usually 44100 or 48000. Other values might cause distortions in Oto
-	op.SampleRate = 44100
-
-	// Number of channels (aka locations) to play sounds from. Either 1 or 2.
-	// 1 is mono sound, and 2 is stereo (most speakers are stereo).
-	op.ChannelCount = 2
-
-	// Format of the source. go-mp3's format is signed 16bit integers.
-	op.Format = oto.FormatSignedInt16LE
-
-	// Remember that you should **not** create more than one context
+	// Remember that you should **not** create more than one context THIS WILL PANIC
 	otoCtx, readyChan, err := oto.NewContext(op)
 	if err != nil {
 		panic("oto.NewContext failed: " + err.Error())
@@ -105,10 +102,20 @@ func playAudio() {
 
 	// Play starts playing the sound and returns without waiting for it (Play() is async).
 	player.Play()
-
-	// We can wait for the sound to finish playing using something like this
+	// Buffer to hold audio samples for visualization
+	buffer := make([]byte, 8) // Adjust size as needed
 	for player.IsPlaying() {
-		time.Sleep(time.Millisecond)
+		// Fill the buffer with audio samples
+		n, err := decodedMp3.Read(buffer)
+		if err != nil && err.Error() != "EOF" {
+			log.Printf("Failed to decode audio: %v", err)
+			break
+		}
+
+		// Update audioData with the decoded samples for visualization
+		updateVisualization(buffer[:n]) // Only send the filled part of the buffer
+
+		time.Sleep(time.Millisecond * 50)
 	}
 
 	// Now that the sound finished playing, we can restart from the beginning (or go to any location in the sound) using seek
@@ -124,9 +131,42 @@ func playAudio() {
 	if err != nil {
 		panic("player.Close failed: " + err.Error())
 	}
+	// Once finished, reset the visualization
+	resetVisualization()
 }
+func renderWaveform(gtx layout.Context, width, height int) layout.Dimensions {
+	// Draw the waveform
+	maxHeight := height
+	numSamples := len(audioData)
+	sampleWidth := width / numSamples
+
+	for i, sample := range audioData {
+		// Map the sample to a positive value for visualization
+		// Scale the sample and make it fit within the visualization height
+		normalizedSample := float32(sample) / float32(1<<15) // Normalize to -1..1
+		barHeight := int(normalizedSample * float32(maxHeight/2))
+
+		// Draw each sample as a vertical line/bar
+		// Clip and paint the rectangle
+		rect := image.Rect(i*sampleWidth, maxHeight/2-barHeight, (i+1)*sampleWidth, maxHeight/2+barHeight)
+
+		// Clip the rectangle region
+		clip.Rect{Max: rect.Max, Min: rect.Min}.Push(gtx.Ops)
+
+		// Fill the clipped area with the color
+		paint.ColorOp{Color: color.NRGBA{R: 255, G: 0, B: 0, A: 255}}.Add(gtx.Ops)
+		paint.PaintOp{}.Add(gtx.Ops)
+	}
+
+	return layout.Dimensions{Size: image.Point{X: width, Y: height}}
+}
+
 func render(gtx layout.Context, th *material.Theme, ops op.Ops, e app.FrameEvent) {
 	spacing := 5
+	// Visualization size and padding
+	visualizationHeight := 200
+	visualizationWidth := 400
+
 	layout.Flex{
 		// Vertical alignment, from top to bottom
 		Axis: layout.Horizontal,
@@ -161,6 +201,29 @@ func render(gtx layout.Context, th *material.Theme, ops op.Ops, e app.FrameEvent
 				return btnStop.Layout(gtx)
 			},
 		),
+		layout.Rigid(layout.Spacer{Height: unit.Dp(spacing)}.Layout),
+		layout.Rigid(
+			func(gtx C) D {
+				// Render the audio visualization
+				if len(audioData) > 0 {
+					// Create a container for the waveform visualization
+					return renderWaveform(gtx, visualizationWidth, visualizationHeight)
+				}
+				return layout.Dimensions{}
+			},
+		),
 	)
 	e.Frame(gtx.Ops)
+}
+
+func updateVisualization(data []byte) {
+	// Store the latest audio data for visualization (this can be modified to limit the number of samples)
+	fmt.Println("Updating visualization with audio data")
+	audioData = data
+	fmt.Println(audioData)
+}
+
+func resetVisualization() {
+	// Reset the visualization when the audio finishes (you can choose to clear the data here)
+	audioData = nil
 }
