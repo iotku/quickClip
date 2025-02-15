@@ -6,14 +6,15 @@ package main
 
 import (
 	"fmt"
+	"gioui.org/f32"
 	"gioui.org/op/clip"
 	"gioui.org/op/paint"
 	"github.com/ebitengine/oto/v3"
 	"github.com/hajimehoshi/go-mp3"
 	"image"
 	"image/color"
+	"io"
 	"log"
-	"math"
 	"os"
 	"time"
 
@@ -71,73 +72,85 @@ func loop(w *app.Window) error {
 	}
 }
 
+// playAudio now uses a TeeReader to split the stream.
 func playAudio(w *app.Window) {
-	// Read the mp3 file into memory
+	// Open the mp3 file
 	file, err := os.Open("./my-file.mp3")
 	if err != nil {
 		panic("opening my-file.mp3 failed: " + err.Error())
 	}
+	// Ensure file is closed eventually.
+	defer file.Close()
 
-	// Decode file. This process is done as the file plays so it won't
-	// load the whole thing into memory.
+	// Decode the MP3 file.
 	decodedMp3, err := mp3.NewDecoder(file)
 	if err != nil {
 		panic("mp3.NewDecoder failed: " + err.Error())
 	}
 
-	// Prepare an Oto context (this will use your default audio device) that will
-	// play all our sounds. Its configuration can't be changed later.
+	// Wrap the decoder with a TeeReader. The TeeReader will write all data
+	// that is read by the player into a buffer that we can read from for visualization.
+	// For simplicity, we'll use a channel to pass chunks of data.
+	visualCh := make(chan []byte, 10)
+	tee := io.TeeReader(decodedMp3, newChunkWriter(visualCh))
 
+	// Prepare an Oto context using the sample rate from the decoded MP3.
 	op := &oto.NewContextOptions{
-		SampleRate:   44100,                   // Set sample rate for playback
-		ChannelCount: 2,                       // Stereo
-		Format:       oto.FormatSignedInt16LE, // 16-bit signed little-endian PCM
+		SampleRate:   decodedMp3.SampleRate(),
+		ChannelCount: 2,
+		Format:       oto.FormatSignedInt16LE,
 	}
 
-	// Remember that you should **not** create more than one context THIS WILL PANIC
 	otoCtx, readyChan, err := oto.NewContext(op)
 	if err != nil {
 		panic("oto.NewContext failed: " + err.Error())
 	}
-	// It might take a bit for the hardware audio devices to be ready, so we wait on the channel.
 	<-readyChan
 
-	// Create a new 'player' that will handle our sound. Paused by default.
-	player := otoCtx.NewPlayer(decodedMp3)
-
-	// Play starts playing the sound and returns without waiting for it (Play() is async).
+	// Create a player that plays from the TeeReader.
+	player := otoCtx.NewPlayer(tee)
 	player.Play()
-	// Buffer to hold audio samples for visualization
-	buffer := make([]byte, 16) // Adjust size as needed
+
+	// Visualization update loop: update at a fixed 60 FPS.
+	ticker := time.NewTicker(time.Millisecond * 16) // ~60 FPS
+	defer ticker.Stop()
+
 	for player.IsPlaying() {
-		// Fill the buffer with audio samples
-		n, err := decodedMp3.Read(buffer)
-		if err != nil && err.Error() != "EOF" {
-			log.Printf("Failed to decode audio: %v", err)
-			break
+		select {
+		case chunk := <-visualCh:
+			// Use the latest chunk for visualization.
+			updateVisualization(chunk)
+			w.Invalidate()
+		case <-ticker.C:
+			// Even if no new chunk is available, force a redraw.
+			w.Invalidate()
 		}
-
-		// Update audioData with the decoded samples for visualization
-		updateVisualization(buffer[:n]) // Only send the filled part of the buffer
-		w.Invalidate()                  // Request a redraw of the window
-		time.Sleep(time.Millisecond * 16)
 	}
-
-	// Now that the sound finished playing, we can restart from the beginning (or go to any location in the sound) using seek
-	// newPos, err := player.(io.Seeker).Seek(0, io.SeekStart)
-	// if err != nil{
-	//     panic("player.Seek failed: " + err.Error())
-	// }
-	// println("Player is now at position:", newPos)
-	// player.Play()
-
-	// If you don't want the player/sound anymore simply close
-	err = player.Close()
-	if err != nil {
+	if err = player.Close(); err != nil {
 		panic("player.Close failed: " + err.Error())
 	}
-	// Once finished, reset the visualization
 	resetVisualization()
+}
+
+// chunkWriter implements io.Writer and sends written chunks over a channel.
+type chunkWriter struct {
+	ch chan<- []byte
+}
+
+func newChunkWriter(ch chan<- []byte) *chunkWriter {
+	return &chunkWriter{ch: ch}
+}
+
+func (cw *chunkWriter) Write(p []byte) (n int, err error) {
+	// Copy p into a new slice so it won't be modified later.
+	buf := make([]byte, len(p))
+	copy(buf, p)
+	// Non-blocking send.
+	select {
+	case cw.ch <- buf:
+	default:
+	}
+	return len(p), nil
 }
 
 func render(gtx layout.Context, th *material.Theme, ops op.Ops, e app.FrameEvent) {
@@ -212,36 +225,63 @@ func renderWaveform(gtx layout.Context, width, height int) layout.Dimensions {
 		return layout.Dimensions{}
 	}
 
-	bars := audioData
-	if len(audioData) < numBars {
-		bars = make([]byte, numBars)
-		copy(bars, audioData)
+	maxHeight := height / 2 // Half of the window height for the center
+	numSamples := len(audioData)
+
+	// Path for the waveform
+	var path clip.Path
+	path.Begin(gtx.Ops)
+
+	step := float32(width) / float32(numSamples) // Space between points
+	centerY := float32(height / 2)
+
+	// Find the maximum value in the audio data for normalization
+	var maxSample float32
+	for _, sample := range audioData {
+		normalizedSample := (float32(sample) - 128) / 128.0
+		if normalizedSample > maxSample {
+			maxSample = normalizedSample
+		}
 	}
 
-	barWidth := width / numBars
-	centerY := height / 2 // Middle of visualization
+	// First half of the waveform (left side)
+	for i, sample := range audioData {
+		// Normalize sample (0 to 255) to range -1 to 1
+		normalizedSample := (float32(sample) - 128) / 128.0
 
-	alpha := 0.5 // Smoothing factor
+		// Normalize the sample based on the max sample
+		scaledSample := normalizedSample / maxSample * float32(maxHeight)
 
-	for i := 0; i < numBars; i++ {
-		// Normalize byte to range [0, 1]
-		sample := float32(bars[i]) / 255.0
+		// Apply scaling to keep the waveform centered
+		x := float32(i) * step
+		y := centerY - scaledSample // Scale based on center
 
-		// Apply power function for contrast
-		targetHeight := float32(math.Pow(float64(sample), 5)) * float32(centerY)
-
-		// Apply smoothing
-		smoothedBars[i] = smoothedBars[i]*(1-float32(alpha)) + targetHeight*float32(alpha)
-
-		// Define mirrored bar (above & below center)
-		rect := image.Rect(i*barWidth, centerY-int(smoothedBars[i]), (i+1)*barWidth, centerY+int(smoothedBars[i]))
-
-		// Draw the bar
-		stack := clip.Rect(rect).Push(gtx.Ops)
-		paint.ColorOp{Color: color.NRGBA{R: 255, G: 0, B: 0, A: 255}}.Add(gtx.Ops)
-		paint.PaintOp{}.Add(gtx.Ops)
-		stack.Pop()
+		if i == 0 {
+			path.MoveTo(f32.Pt(x, y))
+		} else {
+			path.LineTo(f32.Pt(x, y))
+		}
 	}
+
+	// Second half of the waveform (right side, mirrored)
+	for i := len(audioData) - 1; i >= 0; i-- {
+		normalizedSample := (float32(audioData[i]) - 128) / 128.0
+		scaledSample := normalizedSample / maxSample * float32(maxHeight)
+
+		x := float32(i) * step
+		y := centerY + scaledSample // Continue from center without inverting
+
+		path.LineTo(f32.Pt(x, y))
+	}
+
+	// Close the waveform path
+	path.Close()
+
+	// Draw the waveform with a stroke
+	paint.FillShape(gtx.Ops, color.NRGBA{R: 255, G: 0, B: 0, A: 255}, clip.Stroke{
+		Path:  path.End(),
+		Width: 1, // Thickness of waveform line
+	}.Op())
 
 	return layout.Dimensions{Size: image.Point{X: width, Y: height}}
 }
