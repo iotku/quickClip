@@ -1,0 +1,8 @@
+panic: oto.NewContext failed: oto: context is already created
+
+goroutine 50 [running]:
+main.playAudio(0xc0001b0008)
+	/var/home/luser/GolandProjects/quickClip/main.go:105 +0x41b
+created by main.loop in goroutine 19
+	/var/home/luser/GolandProjects/quickClip/main.go:67 +0x27f
+exit status 2
