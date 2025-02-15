@@ -5,7 +5,7 @@ package main
 // A simple Gio program. See https://gioui.org for more information.
 
 import (
-	"fmt"
+	"encoding/binary"
 	"gioui.org/f32"
 	"gioui.org/op/clip"
 	"gioui.org/op/paint"
@@ -15,6 +15,7 @@ import (
 	"image/color"
 	"io"
 	"log"
+	"math"
 	"os"
 	"time"
 
@@ -34,9 +35,8 @@ type D = layout.Dimensions
 var backButton, fwdButton, playButton, stopButton widget.Clickable
 var audioData []byte
 
-const numBars = 200
-
-var smoothedBars [numBars]float32 // Stores smoothed bar heights
+// Global variable to store smoothed sample values.
+var smoothedSamples []float32
 
 func main() {
 	go func() {
@@ -209,53 +209,81 @@ func render(gtx layout.Context, th *material.Theme, ops op.Ops, e app.FrameEvent
 	e.Frame(gtx.Ops)
 }
 
-func updateVisualization(data []byte) {
-	// Append new audio data and maintain a fixed buffer size
-	audioData = append(audioData, data...)
-
-	// Keep only the most recent `numBars` samples
-	if len(audioData) > numBars {
-		audioData = audioData[len(audioData)-numBars:]
+// abs returns the absolute value of a float32.
+func abs(x float32) float32 {
+	if x < 0 {
+		return -x
 	}
-	fmt.Println("Audio Data: ", audioData)
+	return x
 }
 
 func renderWaveform(gtx layout.Context, width, height int) layout.Dimensions {
-	if len(audioData) == 0 {
+	// We need at least 2 bytes for one sample.
+	if len(audioData) < 2 {
 		return layout.Dimensions{}
 	}
 
-	maxHeight := height / 2 // Half of the window height for the center
-	numSamples := len(audioData)
+	// Convert raw byte data to int16 samples.
+	numSamples := len(audioData) / 2
+	samples := make([]int16, numSamples)
+	for i := 0; i < numSamples; i++ {
+		samples[i] = int16(binary.LittleEndian.Uint16(audioData[i*2 : i*2+2]))
+	}
 
-	// Path for the waveform
-	var path clip.Path
-	path.Begin(gtx.Ops)
-
-	step := float32(width) / float32(numSamples) // Space between points
-	centerY := float32(height / 2)
-
-	// Find the maximum value in the audio data for normalization
-	var maxSample float32
-	for _, sample := range audioData {
-		normalizedSample := (float32(sample) - 128) / 128.0
-		if normalizedSample > maxSample {
-			maxSample = normalizedSample
+	// Determine the maximum absolute amplitude in this chunk.
+	var maxAmp float32 = 1
+	for _, s := range samples {
+		amp := float32(s)
+		if amp < 0 {
+			amp = -amp
+		}
+		if amp > maxAmp {
+			maxAmp = amp
 		}
 	}
 
-	// First half of the waveform (left side)
-	for i, sample := range audioData {
-		// Normalize sample (0 to 255) to range -1 to 1
-		normalizedSample := (float32(sample) - 128) / 128.0
+	// Set up drawing parameters.
+	maxHeight := height / 2 // Half window height for amplitude scaling.
+	step := float32(width) / float32(numSamples)
+	centerY := float32(height) / 2
 
-		// Normalize the sample based on the max sample
-		scaledSample := normalizedSample / maxSample * float32(maxHeight)
+	// Contrast parameters.
+	exponent := 2.0
+	threshold := 0.05
 
-		// Apply scaling to keep the waveform centered
+	// Initialize or resize smoothedSamples if needed.
+	if len(smoothedSamples) != numSamples {
+		smoothedSamples = make([]float32, numSamples)
+		// Initialize them to 0.
+		for i := range smoothedSamples {
+			smoothedSamples[i] = 0
+		}
+	}
+
+	// Smoothing factor: lower means smoother (and slower to react).
+	alpha := float32(0.2)
+
+	var path clip.Path
+	path.Begin(gtx.Ops)
+
+	// Process samples to compute a smoothed, contrasted amplitude for each.
+	// We'll build the upper half of the waveform.
+	for i, s := range samples {
+		// For 16-bit PCM, silence is around 0. Normalize to [-1, 1].
+		normalized := float32(s) / maxAmp
+		// Apply a threshold.
+		if math.Abs(float64(normalized)) < float64(threshold) {
+			normalized = 0
+		}
+		// Apply the contrast function.
+		contrasted := applyContrast(normalized, exponent)
+		// Scale to the available vertical space.
+		scaled := contrasted * float32(maxHeight)
+		// Smooth the value using exponential moving average.
+		smoothedSamples[i] = smoothedSamples[i]*(1-alpha) + scaled*alpha
+
 		x := float32(i) * step
-		y := centerY - scaledSample // Scale based on center
-
+		y := centerY - smoothedSamples[i] // Upper half: subtract from center.
 		if i == 0 {
 			path.MoveTo(f32.Pt(x, y))
 		} else {
@@ -263,30 +291,40 @@ func renderWaveform(gtx layout.Context, width, height int) layout.Dimensions {
 		}
 	}
 
-	// Second half of the waveform (right side, mirrored)
-	for i := len(audioData) - 1; i >= 0; i-- {
-		normalizedSample := (float32(audioData[i]) - 128) / 128.0
-		scaledSample := normalizedSample / maxSample * float32(maxHeight)
-
+	// Build the lower half by mirroring the upper half.
+	for i := len(samples) - 1; i >= 0; i-- {
+		// We use the already smoothed sample.
 		x := float32(i) * step
-		y := centerY + scaledSample // Continue from center without inverting
-
+		y := centerY + smoothedSamples[i] // Mirror: add to center.
 		path.LineTo(f32.Pt(x, y))
 	}
 
-	// Close the waveform path
 	path.Close()
 
-	// Draw the waveform with a stroke
+	// Draw the waveform path with a thin stroke.
 	paint.FillShape(gtx.Ops, color.NRGBA{R: 255, G: 0, B: 0, A: 255}, clip.Stroke{
 		Path:  path.End(),
-		Width: 1, // Thickness of waveform line
+		Width: 1,
 	}.Op())
 
 	return layout.Dimensions{Size: image.Point{X: width, Y: height}}
 }
 
+func updateVisualization(data []byte) {
+	audioData = data
+	//fmt.Println("Updating visualization with", len(audioData), "bytes")
+}
+
 func resetVisualization() {
-	// Reset the visualization when the audio finishes (you can choose to clear the data here)
 	audioData = nil
+}
+
+// applyContrast applies a power function to increase contrast.
+// For positive values: result = normalized^exponent,
+// for negative values: result = -(|normalized|^exponent).
+func applyContrast(normalized float32, exponent float64) float32 {
+	if normalized >= 0 {
+		return float32(math.Pow(float64(normalized), exponent))
+	}
+	return -float32(math.Pow(float64(-normalized), exponent))
 }
