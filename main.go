@@ -13,6 +13,7 @@ import (
 	"image"
 	"image/color"
 	"log"
+	"math"
 	"os"
 	"time"
 
@@ -31,6 +32,10 @@ type D = layout.Dimensions
 
 var backButton, fwdButton, playButton, stopButton widget.Clickable
 var audioData []byte
+
+const numBars = 200
+
+var smoothedBars [numBars]float32 // Stores smoothed bar heights
 
 func main() {
 	go func() {
@@ -103,7 +108,7 @@ func playAudio(w *app.Window) {
 	// Play starts playing the sound and returns without waiting for it (Play() is async).
 	player.Play()
 	// Buffer to hold audio samples for visualization
-	buffer := make([]byte, 8) // Adjust size as needed
+	buffer := make([]byte, 16) // Adjust size as needed
 	for player.IsPlaying() {
 		// Fill the buffer with audio samples
 		n, err := decodedMp3.Read(buffer)
@@ -115,7 +120,7 @@ func playAudio(w *app.Window) {
 		// Update audioData with the decoded samples for visualization
 		updateVisualization(buffer[:n]) // Only send the filled part of the buffer
 		w.Invalidate()                  // Request a redraw of the window
-		time.Sleep(time.Millisecond * 50)
+		time.Sleep(time.Millisecond * 16)
 	}
 
 	// Now that the sound finished playing, we can restart from the beginning (or go to any location in the sound) using seek
@@ -136,10 +141,12 @@ func playAudio(w *app.Window) {
 }
 
 func render(gtx layout.Context, th *material.Theme, ops op.Ops, e app.FrameEvent) {
+	paint.ColorOp{Color: color.NRGBA{R: 30, G: 30, B: 30, A: 255}}.Add(gtx.Ops) // Dark gray background
+	paint.PaintOp{}.Add(gtx.Ops)
 	spacing := 5
 	// Visualization size and padding
-	visualizationHeight := 200
-	visualizationWidth := 400
+	//visualizationHeight := 800
+	visualizationWidth := 800
 
 	layout.Flex{
 		// Vertical alignment, from top to bottom
@@ -147,6 +154,16 @@ func render(gtx layout.Context, th *material.Theme, ops op.Ops, e app.FrameEvent
 		// Empty space is left at the start, i.e. at the top
 		Spacing: layout.SpaceStart,
 	}.Layout(gtx,
+		layout.Rigid(
+			func(gtx C) D {
+				// Render the audio visualization
+				if len(audioData) > 0 {
+					// Create a container for the waveform visualization
+					return renderWaveform(gtx, visualizationWidth, gtx.Constraints.Max.Y)
+				}
+				return layout.Dimensions{}
+			},
+		),
 		layout.Rigid(
 			func(gtx C) D {
 				btnBack := material.Button(th, &backButton, "Back")
@@ -175,51 +192,55 @@ func render(gtx layout.Context, th *material.Theme, ops op.Ops, e app.FrameEvent
 				return btnStop.Layout(gtx)
 			},
 		),
-		layout.Rigid(layout.Spacer{Height: unit.Dp(spacing)}.Layout),
-		layout.Rigid(
-			func(gtx C) D {
-				// Render the audio visualization
-				if len(audioData) > 0 {
-					// Create a container for the waveform visualization
-					return renderWaveform(gtx, visualizationWidth, visualizationHeight)
-				}
-				return layout.Dimensions{}
-			},
-		),
 	)
 	e.Frame(gtx.Ops)
 }
 
 func updateVisualization(data []byte) {
-	// Store the raw byte data directly for visualization
-	audioData = data
-	fmt.Println("Updating visualization with audio data", audioData)
+	// Append new audio data and maintain a fixed buffer size
+	audioData = append(audioData, data...)
+
+	// Keep only the most recent `numBars` samples
+	if len(audioData) > numBars {
+		audioData = audioData[len(audioData)-numBars:]
+	}
+	fmt.Println("Audio Data: ", audioData)
 }
 
 func renderWaveform(gtx layout.Context, width, height int) layout.Dimensions {
-	maxHeight := height
-	numSamples := len(audioData)
-	if numSamples == 0 {
+	if len(audioData) == 0 {
 		return layout.Dimensions{}
 	}
 
-	sampleWidth := width / numSamples
+	bars := audioData
+	if len(audioData) < numBars {
+		bars = make([]byte, numBars)
+		copy(bars, audioData)
+	}
 
-	for i, sample := range audioData {
-		// Normalize the byte value to fit the range of visualization height
-		// Byte values range from 0 to 255, so we map them to the range -maxHeight/2 to maxHeight/2
-		normalizedSample := float32(sample) / 255.0 // Normalize to 0..1
-		barHeight := int(normalizedSample * float32(maxHeight/2))
+	barWidth := width / numBars
+	centerY := height / 2 // Middle of visualization
 
-		// Draw each sample as a vertical line/bar
-		rect := image.Rect(i*sampleWidth, maxHeight/2-barHeight, (i+1)*sampleWidth, maxHeight/2+barHeight)
+	alpha := 0.5 // Smoothing factor
 
-		// Clip the rectangle region
-		clip.Rect{Max: rect.Max, Min: rect.Min}.Push(gtx.Ops)
+	for i := 0; i < numBars; i++ {
+		// Normalize byte to range [0, 1]
+		sample := float32(bars[i]) / 255.0
 
-		// Fill the clipped area with the color (red)
+		// Apply power function for contrast
+		targetHeight := float32(math.Pow(float64(sample), 5)) * float32(centerY)
+
+		// Apply smoothing
+		smoothedBars[i] = smoothedBars[i]*(1-float32(alpha)) + targetHeight*float32(alpha)
+
+		// Define mirrored bar (above & below center)
+		rect := image.Rect(i*barWidth, centerY-int(smoothedBars[i]), (i+1)*barWidth, centerY+int(smoothedBars[i]))
+
+		// Draw the bar
+		stack := clip.Rect(rect).Push(gtx.Ops)
 		paint.ColorOp{Color: color.NRGBA{R: 255, G: 0, B: 0, A: 255}}.Add(gtx.Ops)
 		paint.PaintOp{}.Add(gtx.Ops)
+		stack.Pop()
 	}
 
 	return layout.Dimensions{Size: image.Point{X: width, Y: height}}
