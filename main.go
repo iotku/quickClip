@@ -35,6 +35,12 @@ type D = layout.Dimensions
 var backButton, fwdButton, playButton, stopButton widget.Clickable
 var audioData []byte
 
+const bufferSize = 44100 * 2 * 2 // 1 second of audio at 44.1kHz
+const audioLatencyOffset = 0.9   // Adjust this value as needed (in seconds)
+var audioRingBuffer = make([]byte, bufferSize)
+var ringWritePos = 0
+var isPlaying = false
+var playbackTime float64 = 0 // Global variable to track playback progress
 // Global variable to store smoothed sample values.
 var smoothedSamples []float32
 
@@ -55,8 +61,6 @@ func loop(w *app.Window) error {
 	th := material.NewTheme()
 	th.Shaper = text.NewShaper(text.WithCollection(gofont.Collection()))
 	var ops op.Ops
-
-	var isPlaying bool = false
 	for {
 		switch e := w.Event().(type) {
 		case app.DestroyEvent:
@@ -95,13 +99,13 @@ func playAudio(w *app.Window) {
 	tee := io.TeeReader(decodedMp3, newChunkWriter(visualCh))
 
 	// Prepare an Oto context using the sample rate from the decoded MP3.
-	op := &oto.NewContextOptions{
+	otoOptions := &oto.NewContextOptions{
 		SampleRate:   decodedMp3.SampleRate(),
 		ChannelCount: 2,
 		Format:       oto.FormatSignedInt16LE,
 	}
 
-	otoCtx, readyChan, err := oto.NewContext(op)
+	otoCtx, readyChan, err := oto.NewContext(otoOptions)
 	if err != nil {
 		panic("oto.NewContext failed: " + err.Error())
 	}
@@ -130,6 +134,7 @@ func playAudio(w *app.Window) {
 		panic("player.Close failed: " + err.Error())
 	}
 	resetVisualization()
+	isPlaying = false
 }
 
 // chunkWriter implements io.Writer and sends written chunks over a channel.
@@ -159,7 +164,7 @@ func render(gtx layout.Context, th *material.Theme, ops op.Ops, e app.FrameEvent
 	spacing := 5
 	// Visualization size and padding
 	//visualizationHeight := 800
-	visualizationWidth := 800
+	//visualizationWidth := 800
 
 	layout.Flex{
 		// Vertical alignment, from top to bottom
@@ -170,9 +175,9 @@ func render(gtx layout.Context, th *material.Theme, ops op.Ops, e app.FrameEvent
 		layout.Rigid(
 			func(gtx C) D {
 				// Render the audio visualization
-				if len(audioData) > 0 {
+				if len(audioRingBuffer) > 0 {
 					// Create a container for the waveform visualization
-					return renderWaveform(gtx, visualizationWidth, gtx.Constraints.Max.Y)
+					return renderWaveform(gtx, gtx.Constraints.Max.X-260, gtx.Constraints.Max.Y) // TODO: Calculate based on button size...
 				}
 				return layout.Dimensions{}
 			},
@@ -218,19 +223,43 @@ func abs(x float32) float32 {
 }
 
 func renderWaveform(gtx layout.Context, width, height int) layout.Dimensions {
-	// We need at least 2 bytes for one sample.
-	if len(audioData) < 2 {
+	// Fix: Check for valid data
+	if len(audioRingBuffer) < 2 {
 		return layout.Dimensions{}
 	}
 
-	// Convert raw byte data to int16 samples.
-	numSamples := len(audioData) / 2
-	samples := make([]int16, numSamples)
-	for i := 0; i < numSamples; i++ {
-		samples[i] = int16(binary.LittleEndian.Uint16(audioData[i*2 : i*2+2]))
+	sampleRate := 44100
+	numSamples := width // One sample per pixel
+
+	// Find where to start rendering based on playbackTime
+	startSample := int((playbackTime - audioLatencyOffset) * float64(sampleRate))
+	startIndex := (startSample * 2) % bufferSize
+
+	// Ensure the startIndex is non-negative
+	if startIndex < 0 {
+		startIndex += bufferSize
 	}
 
-	// Determine the maximum absolute amplitude in this chunk.
+	// Extract samples
+	samples := make([]int16, numSamples)
+
+	for i := 0; i < numSamples; i++ {
+		// Ensure sampleIndex is non-negative
+		sampleIndex := (startIndex + i*2) % bufferSize
+		if sampleIndex < 0 {
+			sampleIndex += bufferSize
+		}
+
+		// Ensure there are enough bytes to access
+		if sampleIndex+1 < len(audioRingBuffer) {
+			samples[i] = int16(binary.LittleEndian.Uint16(audioRingBuffer[sampleIndex : sampleIndex+2]))
+		} else {
+			// Handle the case where we don't have enough data yet
+			samples[i] = 0
+		}
+	}
+
+	// Find the maximum amplitude
 	var maxAmp float32 = 1
 	for _, s := range samples {
 		amp := float32(s)
@@ -242,48 +271,38 @@ func renderWaveform(gtx layout.Context, width, height int) layout.Dimensions {
 		}
 	}
 
-	// Set up drawing parameters.
-	maxHeight := height / 2 // Half window height for amplitude scaling.
+	// Set up drawing parameters
+	maxHeight := height / 2
 	step := float32(width) / float32(numSamples)
 	centerY := float32(height) / 2
 
-	// Contrast parameters.
+	// Contrast parameters
 	exponent := 2.0
 	threshold := 0.05
 
-	// Initialize or resize smoothedSamples if needed.
+	// Fix: Ensure smoothedSamples is properly initialized
 	if len(smoothedSamples) != numSamples {
 		smoothedSamples = make([]float32, numSamples)
-		// Initialize them to 0.
-		for i := range smoothedSamples {
-			smoothedSamples[i] = 0
-		}
 	}
 
-	// Smoothing factor: lower means smoother (and slower to react).
+	// Smoothing factor
 	alpha := float32(0.2)
 
 	var path clip.Path
 	path.Begin(gtx.Ops)
 
-	// Process samples to compute a smoothed, contrasted amplitude for each.
-	// We'll build the upper half of the waveform.
+	// Process samples to compute smoothed amplitude
 	for i, s := range samples {
-		// For 16-bit PCM, silence is around 0. Normalize to [-1, 1].
 		normalized := float32(s) / maxAmp
-		// Apply a threshold.
 		if math.Abs(float64(normalized)) < float64(threshold) {
 			normalized = 0
 		}
-		// Apply the contrast function.
 		contrasted := applyContrast(normalized, exponent)
-		// Scale to the available vertical space.
 		scaled := contrasted * float32(maxHeight)
-		// Smooth the value using exponential moving average.
 		smoothedSamples[i] = smoothedSamples[i]*(1-alpha) + scaled*alpha
 
 		x := float32(i) * step
-		y := centerY - smoothedSamples[i] // Upper half: subtract from center.
+		y := centerY - smoothedSamples[i]
 		if i == 0 {
 			path.MoveTo(f32.Pt(x, y))
 		} else {
@@ -291,28 +310,41 @@ func renderWaveform(gtx layout.Context, width, height int) layout.Dimensions {
 		}
 	}
 
-	// Build the lower half by mirroring the upper half.
+	// Mirror lower half
 	for i := len(samples) - 1; i >= 0; i-- {
-		// We use the already smoothed sample.
 		x := float32(i) * step
-		y := centerY + smoothedSamples[i] // Mirror: add to center.
+		y := centerY + smoothedSamples[i]
 		path.LineTo(f32.Pt(x, y))
 	}
 
 	path.Close()
 
-	// Draw the waveform path with a thin stroke.
+	// Draw the waveform
 	paint.FillShape(gtx.Ops, color.NRGBA{R: 255, G: 0, B: 0, A: 255}, clip.Stroke{
 		Path:  path.End(),
 		Width: 1,
 	}.Op())
 
+	log.Println("Start index:", startIndex, "Buffer size:", bufferSize)
+	log.Println("Num samples:", numSamples)
+
 	return layout.Dimensions{Size: image.Point{X: width, Y: height}}
 }
 
 func updateVisualization(data []byte) {
-	audioData = data
-	//fmt.Println("Updating visualization with", len(audioData), "bytes")
+	frameDuration := float64(len(data)) / float64(bufferSize) // 16-bit stereo
+	playbackTime += frameDuration
+
+	// Ensure we wrap around correctly
+	copy(audioRingBuffer[ringWritePos:], data)
+
+	// Handle wraparound case
+	if ringWritePos+len(data) > len(audioRingBuffer) {
+		remaining := (ringWritePos + len(data)) - len(audioRingBuffer)
+		copy(audioRingBuffer[:remaining], data[len(data)-remaining:])
+	}
+
+	ringWritePos = (ringWritePos + len(data)) % len(audioRingBuffer)
 }
 
 func resetVisualization() {
