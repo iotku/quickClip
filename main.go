@@ -2,9 +2,8 @@
 
 package main
 
-// A simple Gio program. See https://gioui.org for more information.
-
 import (
+	"bytes"
 	"encoding/binary"
 	"gioui.org/f32"
 	"gioui.org/op/clip"
@@ -37,6 +36,9 @@ var openButton, backButton, fwdButton, playButton, stopButton widget.Clickable
 var fileDialog *explorer.Explorer // Initialized in Main
 var currentReader io.Reader
 
+// Channel to signal when the UI is ready
+var uiReadyChan = make(chan struct{})
+
 const bufferSize = 44100 * 2 * 2 // 1 second of audio at 44.1kHz
 const audioLatencyOffset = 0.9   // Adjust this value as needed (in seconds) TODO: This is broken for values >= 1
 var audioRingBuffer = make([]byte, bufferSize)
@@ -63,12 +65,21 @@ func main() {
 		w.Option(app.Title("QuickClip"))
 		w.Option(app.Size(unit.Dp(800), unit.Dp(600)))
 		fileDialog = explorer.NewExplorer(w)
+
+		// Notify that the UI is ready
+		close(uiReadyChan)
+		// Start Render loop
 		if err := loop(w); err != nil {
 			log.Fatal(err)
 		}
 		os.Exit(0)
 	}()
+
+	// Wait for the UI to be ready before initializing Oto
+	<-uiReadyChan
+	intializeOtoCtx()
 	app.Main()
+
 }
 
 func loop(w *app.Window) error {
@@ -96,6 +107,29 @@ func loop(w *app.Window) error {
 	}
 }
 
+func intializeOtoCtx() {
+	if globalOtoCtx != nil {
+		return
+	}
+	// Initialize the global Oto context once here.
+	// Note: Choose options that work for your app.
+	// If you later need a different sample rate (e.g., from an MP3),
+	// you might need to convert or resample, because reinitializing
+	// is not allowed.
+	opts := &oto.NewContextOptions{
+		SampleRate:   44100,
+		ChannelCount: 2,
+		Format:       oto.FormatSignedInt16LE,
+	}
+
+	ctx, readyChan, err := oto.NewContext(opts)
+	if err != nil {
+		panic("oto.NewContext failed: " + err.Error())
+	}
+	<-readyChan // Wait for the context to be ready
+
+	globalOtoCtx = ctx
+}
 func openFileDialog(w *app.Window) {
 	if fileDialog == nil {
 		return
@@ -119,22 +153,25 @@ func stop() {
 }
 
 func play(w *app.Window) {
-	if currentState == Suspended {
+	// Ensure the audio context is resumed immediately on a user gesture.
+	if globalOtoCtx != nil {
 		globalOtoCtx.Resume()
+	}
+
+	if currentState == Suspended {
+		currentState = Playing
 	} else {
-		go playAudio(w)
+		// Schedule playAudio after a very short delay  // work around WASM bugs
+		time.AfterFunc(5*time.Millisecond, func() {
+			go playAudio(w)
+		})
 	}
 }
 
 // getOtoContext returns the global oto context, creating it if necessary.
-func getOtoContext(options *oto.NewContextOptions) *oto.Context {
+func getOtoContext() *oto.Context {
 	if globalOtoCtx == nil {
-		ctx, readyChan, err := oto.NewContext(options)
-		if err != nil {
-			panic("oto.NewContext failed: " + err.Error())
-		}
-		<-readyChan // Wait for the context to be ready
-		globalOtoCtx = ctx
+		log.Println("GetOtoContext not initialized!!!")
 	}
 	return globalOtoCtx
 }
@@ -162,15 +199,8 @@ func playAudio(w *app.Window) {
 	visualCh := make(chan []byte, 10)
 	tee := io.TeeReader(decodedMp3, newChunkWriter(visualCh))
 
-	// Prepare an Oto context using the sample rate from the decoded MP3.
-	otoOptions := &oto.NewContextOptions{
-		SampleRate:   decodedMp3.SampleRate(),
-		ChannelCount: 2,
-		Format:       oto.FormatSignedInt16LE,
-	}
-
-	// Use the global Oto context.
-	otoCtx := getOtoContext(otoOptions)
+	// Use the global Oto context. // NOTE: WE HAVE HARD CODED OPTIONS !
+	otoCtx := getOtoContext()
 
 	// Create a player that plays from the TeeReader.
 	player := otoCtx.NewPlayer(tee)
@@ -236,8 +266,8 @@ func render(gtx layout.Context, th *material.Theme, ops op.Ops, e app.FrameEvent
 				// Render the audio visualization
 				if len(audioRingBuffer) > 0 {
 					// Create a container for the waveform visualization
-					if gtx.Constraints.Max.X > 300 { // TODO: Remove magic number, must be large enough or will negative index
-						return renderWaveform(gtx, gtx.Constraints.Max.X-300, gtx.Constraints.Max.Y) // TODO: Calculate based on button size...
+					if gtx.Constraints.Max.X > 320 { // TODO: Remove magic number, must be large enough or will negative index
+						return renderWaveform(gtx, gtx.Constraints.Max.X-320, gtx.Constraints.Max.Y) // TODO: Calculate based on button size...
 					}
 				}
 				return layout.Dimensions{}
@@ -248,6 +278,7 @@ func render(gtx layout.Context, th *material.Theme, ops op.Ops, e app.FrameEvent
 				return material.Button(th, &openButton, "Open").Layout(gtx)
 			},
 		),
+		layout.Rigid(layout.Spacer{Width: unit.Dp(spacing)}.Layout),
 		layout.Rigid(
 			func(gtx C) D {
 				return material.Button(th, &backButton, "Back").Layout(gtx)
@@ -418,4 +449,27 @@ func applyContrast(normalized float32, exponent float64) float32 {
 		return float32(math.Pow(float64(normalized), exponent))
 	}
 	return -float32(math.Pow(float64(-normalized), exponent))
+}
+
+// WASM workaround
+func unlockAudioContext() {
+	if globalOtoCtx != nil {
+		// Resume the context immediately.
+		globalOtoCtx.Resume()
+
+		// Create a short silent buffer (e.g. 100ms of silence).
+		silentDuration := 0.1 // in seconds
+		sampleRate := 44100
+		// For stereo 16-bit audio, each sample takes 4 bytes.
+		numBytes := int(float64(sampleRate) * silentDuration * 4)
+		silentBuffer := make([]byte, numBytes) // all zeros = silence
+
+		// Create a player for the silent buffer.
+		player := globalOtoCtx.NewPlayer(bytes.NewReader(silentBuffer))
+		player.Play()
+
+		// Let it play for a short while, then close.
+		time.Sleep(100 * time.Millisecond)
+		player.Close()
+	}
 }
