@@ -33,10 +33,9 @@ type C = layout.Context
 type D = layout.Dimensions
 
 var backButton, fwdButton, playButton, stopButton widget.Clickable
-var audioData []byte
 
 const bufferSize = 44100 * 2 * 2 // 1 second of audio at 44.1kHz
-const audioLatencyOffset = 0.9   // Adjust this value as needed (in seconds)
+const audioLatencyOffset = 0.9   // Adjust this value as needed (in seconds) TODO: This is broken for values >= 1
 var audioRingBuffer = make([]byte, bufferSize)
 var ringWritePos = 0
 var isPlaying = false
@@ -322,7 +321,7 @@ func renderWaveform(gtx layout.Context, width, height int) layout.Dimensions {
 	// Draw the waveform
 	paint.FillShape(gtx.Ops, color.NRGBA{R: 255, G: 0, B: 0, A: 255}, clip.Stroke{
 		Path:  path.End(),
-		Width: 1,
+		Width: 2,
 	}.Op())
 
 	log.Println("Start index:", startIndex, "Buffer size:", bufferSize)
@@ -348,7 +347,17 @@ func updateVisualization(data []byte) {
 }
 
 func resetVisualization() {
-	audioData = nil
+	// Reset the audioRingBuffer to clear out any old audio data
+	audioRingBuffer = make([]byte, bufferSize)
+
+	// Reset the ring write position to the beginning
+	ringWritePos = 0
+
+	// Reset playback time to 0 to start fresh
+	playbackTime = 0
+
+	// Clear out any previously smoothed sample data
+	smoothedSamples = nil
 }
 
 // applyContrast applies a power function to increase contrast.
