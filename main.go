@@ -9,6 +9,7 @@ import (
 	"gioui.org/f32"
 	"gioui.org/op/clip"
 	"gioui.org/op/paint"
+	"gioui.org/x/explorer"
 	"github.com/ebitengine/oto/v3"
 	"github.com/hajimehoshi/go-mp3"
 	"image"
@@ -32,7 +33,9 @@ import (
 type C = layout.Context
 type D = layout.Dimensions
 
-var backButton, fwdButton, playButton, stopButton widget.Clickable
+var openButton, backButton, fwdButton, playButton, stopButton widget.Clickable
+var fileDialog *explorer.Explorer // Initialized in Main
+var currentReader io.Reader
 
 const bufferSize = 44100 * 2 * 2 // 1 second of audio at 44.1kHz
 const audioLatencyOffset = 0.9   // Adjust this value as needed (in seconds) TODO: This is broken for values >= 1
@@ -59,6 +62,7 @@ func main() {
 		w := new(app.Window)
 		w.Option(app.Title("QuickClip"))
 		w.Option(app.Size(unit.Dp(800), unit.Dp(600)))
+		fileDialog = explorer.NewExplorer(w)
 		if err := loop(w); err != nil {
 			log.Fatal(err)
 		}
@@ -72,20 +76,39 @@ func loop(w *app.Window) error {
 	th.Shaper = text.NewShaper(text.WithCollection(gofont.Collection()))
 	var ops op.Ops
 	for {
-		switch e := w.Event().(type) {
+		e := w.Event()
+		switch evt := e.(type) {
 		case app.DestroyEvent:
-			return e.Err
+			return evt.Err
 		case app.FrameEvent:
-			gtx := app.NewContext(&ops, e)
+			gtx := app.NewContext(&ops, evt)
+			if openButton.Clicked(gtx) {
+				go openFileDialog(w)
+			}
 			if playButton.Clicked(gtx) {
 				play(w)
 			}
 			if stopButton.Clicked(gtx) {
 				stop()
 			}
-			render(gtx, th, ops, e)
+			render(gtx, th, ops, evt)
 		}
 	}
+}
+
+func openFileDialog(w *app.Window) {
+	if fileDialog == nil {
+		return
+	}
+
+	// Open file dialog for a single MP3 file
+	reader, err := fileDialog.ChooseFile("mp3")
+	if err != nil {
+		log.Println("Error selecting file:", err)
+		return
+	}
+
+	currentReader = reader
 }
 
 func stop() {
@@ -118,18 +141,19 @@ func getOtoContext(options *oto.NewContextOptions) *oto.Context {
 
 // playAudio now uses a TeeReader to split the stream.
 func playAudio(w *app.Window) {
-	// Open the mp3 file
-	file, err := os.Open("./my-file.mp3")
-	if err != nil {
-		panic("opening my-file.mp3 failed: " + err.Error())
+	if currentReader == nil {
+		log.Println("No audio reader")
+		return
+	} else if currentState == Playing {
+		return
 	}
-	// Ensure file is closed eventually.
-	defer file.Close()
 
+	reader := currentReader
 	// Decode the MP3 file.
-	decodedMp3, err := mp3.NewDecoder(file)
+	decodedMp3, err := mp3.NewDecoder(reader)
 	if err != nil {
-		panic("mp3.NewDecoder failed: " + err.Error())
+		log.Println("mp3.NewDecoder failed:", err)
+		return
 	}
 
 	// Wrap the decoder with a TeeReader. The TeeReader will write all data
@@ -212,37 +236,39 @@ func render(gtx layout.Context, th *material.Theme, ops op.Ops, e app.FrameEvent
 				// Render the audio visualization
 				if len(audioRingBuffer) > 0 {
 					// Create a container for the waveform visualization
-					return renderWaveform(gtx, gtx.Constraints.Max.X-260, gtx.Constraints.Max.Y) // TODO: Calculate based on button size...
+					if gtx.Constraints.Max.X > 300 { // TODO: Remove magic number, must be large enough or will negative index
+						return renderWaveform(gtx, gtx.Constraints.Max.X-300, gtx.Constraints.Max.Y) // TODO: Calculate based on button size...
+					}
 				}
 				return layout.Dimensions{}
 			},
 		),
 		layout.Rigid(
 			func(gtx C) D {
-				btnBack := material.Button(th, &backButton, "Back")
-				return btnBack.Layout(gtx)
+				return material.Button(th, &openButton, "Open").Layout(gtx)
+			},
+		),
+		layout.Rigid(
+			func(gtx C) D {
+				return material.Button(th, &backButton, "Back").Layout(gtx)
 			},
 		),
 		layout.Rigid(layout.Spacer{Width: unit.Dp(spacing)}.Layout),
 		layout.Rigid(
 			func(gtx C) D {
-				btnFwd := material.Button(th, &fwdButton, "Forward")
-				return btnFwd.Layout(gtx)
+				return material.Button(th, &fwdButton, "Forward").Layout(gtx)
 			},
 		),
 		layout.Rigid(layout.Spacer{Width: unit.Dp(spacing)}.Layout),
 		layout.Rigid(
 			func(gtx C) D {
-				btnPlay := material.Button(th, &playButton, "Play")
-
-				return btnPlay.Layout(gtx)
+				return material.Button(th, &playButton, "Play").Layout(gtx)
 			},
 		),
 		layout.Rigid(layout.Spacer{Width: unit.Dp(spacing)}.Layout),
 		layout.Rigid(
 			func(gtx C) D {
-				btnStop := material.Button(th, &stopButton, "Stop")
-				return btnStop.Layout(gtx)
+				return material.Button(th, &stopButton, "Stop").Layout(gtx)
 			},
 		),
 	)
@@ -250,7 +276,6 @@ func render(gtx layout.Context, th *material.Theme, ops op.Ops, e app.FrameEvent
 }
 
 func renderWaveform(gtx layout.Context, width, height int) layout.Dimensions {
-	// Fix: Check for valid data
 	if len(audioRingBuffer) < 2 {
 		return layout.Dimensions{}
 	}
