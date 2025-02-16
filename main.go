@@ -39,15 +39,14 @@ const audioLatencyOffset = 0.9   // Adjust this value as needed (in seconds) TOD
 var audioRingBuffer = make([]byte, bufferSize)
 var ringWritePos = 0
 var isPlaying = false
-var playbackTime float64 = 0 // Global variable to track playback progress
-// Global variable to store smoothed sample values.
+var playbackTime float64 = 0
 var smoothedSamples []float32
 
 func main() {
 	go func() {
 		w := new(app.Window)
 		w.Option(app.Title("QuickClip"))
-		w.Option(app.Size(unit.Dp(400), unit.Dp(600)))
+		w.Option(app.Size(unit.Dp(800), unit.Dp(600)))
 		if err := loop(w); err != nil {
 			log.Fatal(err)
 		}
@@ -213,14 +212,6 @@ func render(gtx layout.Context, th *material.Theme, ops op.Ops, e app.FrameEvent
 	e.Frame(gtx.Ops)
 }
 
-// abs returns the absolute value of a float32.
-func abs(x float32) float32 {
-	if x < 0 {
-		return -x
-	}
-	return x
-}
-
 func renderWaveform(gtx layout.Context, width, height int) layout.Dimensions {
 	// Fix: Check for valid data
 	if len(audioRingBuffer) < 2 {
@@ -323,9 +314,6 @@ func renderWaveform(gtx layout.Context, width, height int) layout.Dimensions {
 		Path:  path.End(),
 		Width: 2,
 	}.Op())
-
-	log.Println("Start index:", startIndex, "Buffer size:", bufferSize)
-	log.Println("Num samples:", numSamples)
 
 	return layout.Dimensions{Size: image.Point{X: width, Y: height}}
 }
