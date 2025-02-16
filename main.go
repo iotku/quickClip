@@ -38,9 +38,21 @@ const bufferSize = 44100 * 2 * 2 // 1 second of audio at 44.1kHz
 const audioLatencyOffset = 0.9   // Adjust this value as needed (in seconds) TODO: This is broken for values >= 1
 var audioRingBuffer = make([]byte, bufferSize)
 var ringWritePos = 0
-var isPlaying = false
 var playbackTime float64 = 0
 var smoothedSamples []float32
+
+var globalOtoCtx *oto.Context
+
+type PlaybackState int
+
+const (
+	NotInitialized PlaybackState = iota
+	Playing
+	Suspended
+	Finished
+)
+
+var currentState PlaybackState = NotInitialized
 
 func main() {
 	go func() {
@@ -65,13 +77,43 @@ func loop(w *app.Window) error {
 			return e.Err
 		case app.FrameEvent:
 			gtx := app.NewContext(&ops, e)
-			if playButton.Clicked(gtx) && !isPlaying {
-				isPlaying = true
-				go playAudio(w)
+			if playButton.Clicked(gtx) {
+				play(w)
+			}
+			if stopButton.Clicked(gtx) {
+				stop()
 			}
 			render(gtx, th, ops, e)
 		}
 	}
+}
+
+func stop() {
+	if currentState != NotInitialized && currentState != Finished {
+		globalOtoCtx.Suspend()
+		currentState = Suspended
+	}
+}
+
+func play(w *app.Window) {
+	if currentState == Suspended {
+		globalOtoCtx.Resume()
+	} else {
+		go playAudio(w)
+	}
+}
+
+// getOtoContext returns the global oto context, creating it if necessary.
+func getOtoContext(options *oto.NewContextOptions) *oto.Context {
+	if globalOtoCtx == nil {
+		ctx, readyChan, err := oto.NewContext(options)
+		if err != nil {
+			panic("oto.NewContext failed: " + err.Error())
+		}
+		<-readyChan // Wait for the context to be ready
+		globalOtoCtx = ctx
+	}
+	return globalOtoCtx
 }
 
 // playAudio now uses a TeeReader to split the stream.
@@ -103,15 +145,13 @@ func playAudio(w *app.Window) {
 		Format:       oto.FormatSignedInt16LE,
 	}
 
-	otoCtx, readyChan, err := oto.NewContext(otoOptions)
-	if err != nil {
-		panic("oto.NewContext failed: " + err.Error())
-	}
-	<-readyChan
+	// Use the global Oto context.
+	otoCtx := getOtoContext(otoOptions)
 
 	// Create a player that plays from the TeeReader.
 	player := otoCtx.NewPlayer(tee)
 	player.Play()
+	currentState = Playing
 
 	// Visualization update loop: update at a fixed 60 FPS.
 	ticker := time.NewTicker(time.Millisecond * 16) // ~60 FPS
@@ -132,7 +172,7 @@ func playAudio(w *app.Window) {
 		panic("player.Close failed: " + err.Error())
 	}
 	resetVisualization()
-	isPlaying = false
+	currentState = Finished
 }
 
 // chunkWriter implements io.Writer and sends written chunks over a channel.
@@ -160,9 +200,6 @@ func render(gtx layout.Context, th *material.Theme, ops op.Ops, e app.FrameEvent
 	paint.ColorOp{Color: color.NRGBA{R: 30, G: 30, B: 30, A: 255}}.Add(gtx.Ops) // Dark gray background
 	paint.PaintOp{}.Add(gtx.Ops)
 	spacing := 5
-	// Visualization size and padding
-	//visualizationHeight := 800
-	//visualizationWidth := 800
 
 	layout.Flex{
 		// Vertical alignment, from top to bottom
@@ -267,10 +304,10 @@ func renderWaveform(gtx layout.Context, width, height int) layout.Dimensions {
 	centerY := float32(height) / 2
 
 	// Contrast parameters
-	exponent := 2.0
-	threshold := 0.05
+	exponent := 2.5
+	threshold := 0.15
 
-	// Fix: Ensure smoothedSamples is properly initialized
+	// Ensure smoothedSamples is properly initialized
 	if len(smoothedSamples) != numSamples {
 		smoothedSamples = make([]float32, numSamples)
 	}
