@@ -385,34 +385,36 @@ func renderWaveform(gtx layout.Context, width, height int) layout.Dimensions {
 		}
 	}
 
-	// Set up drawing parameters
-	maxHeight := height / 2
+	// Pre-calculate drawing parameters as float32.
+	maxHeight := float32(height) / 2
 	step := float32(width) / float32(numSamples)
 	centerY := float32(height) / 2
 
-	// Contrast parameters
-	exponent := 2.5
-	threshold := 0.15
+	// Use float32 contrast parameters.
+	exponent := float32(2.5)
+	threshold := float32(0.15)
 
-	// Ensure smoothedSamples is properly initialized
+	// Reuse the smoothedSamples slice if possible.
 	if len(smoothedSamples) != numSamples {
 		smoothedSamples = make([]float32, numSamples)
 	}
 
-	// Smoothing factor
 	alpha := float32(0.2)
 
 	var path clip.Path
 	path.Begin(gtx.Ops)
 
-	// Process samples to compute smoothed amplitude
+	// Process samples to compute smoothed amplitude and build the upper path.
 	for i, s := range samples {
+		if len(smoothedSamples) != numSamples {
+			smoothedSamples = make([]float32, numSamples)
+		}
 		normalized := float32(s) / maxAmp
-		if math.Abs(float64(normalized)) < float64(threshold) {
+		if abs32(normalized) < threshold {
 			normalized = 0
 		}
-		contrasted := applyContrast(normalized, exponent)
-		scaled := contrasted * float32(maxHeight)
+		contrasted := applyContrast32(normalized, exponent)
+		scaled := contrasted * maxHeight
 		smoothedSamples[i] = smoothedSamples[i]*(1-alpha) + scaled*alpha
 
 		x := float32(i) * step
