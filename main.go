@@ -143,9 +143,10 @@ func openFileDialog(w *app.Window) {
 		return
 	}
 
+	lastState := currentState
 	eject()
 	currentReader = reader
-	if currentState == Playing {
+	if lastState == Playing {
 		play(w) // keep playing with new reader
 	}
 }
