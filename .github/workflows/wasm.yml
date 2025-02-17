@@ -39,11 +39,6 @@ jobs:
           mkdir -p build
           gogio -target js -o build .
 
-      - name: Move files to root-friendly directory
-        run: |
-          mv build/command-line-arguments/* build/
-          rm -rf build/command-line-arguments
-
       - name: Deploy to GitHub Pages
         uses: JamesIves/github-pages-deploy-action@v4
         with:
