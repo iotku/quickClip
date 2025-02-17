@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main  # Adjust if using a different branch
+  workflow_dispatch:
 
 permissions:
   contents: write
