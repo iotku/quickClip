@@ -35,6 +35,7 @@ type D = layout.Dimensions
 var openButton, backButton, fwdButton, playButton, stopButton widget.Clickable
 var fileDialog *explorer.Explorer // Initialized in Main
 var currentReader io.Reader
+var currentPlayer *oto.Player // Track the current player
 
 // Channel to signal when the UI is ready
 var uiReadyChan = make(chan struct{})
@@ -142,9 +143,37 @@ func openFileDialog(w *app.Window) {
 		return
 	}
 
+	eject()
 	currentReader = reader
+	if currentState == Playing {
+		play(w) // keep playing with new reader
+	}
 }
 
+func eject() {
+	// Stop playback if it's ongoing
+	if currentState == Playing || currentState == Suspended {
+		stop()
+	}
+
+	// Ensure that we close the player and release resources
+	if currentPlayer != nil {
+		err := currentPlayer.Close()
+		if err != nil {
+			log.Println("Error closing the player:", err)
+		}
+		currentPlayer = nil // Reset the player
+	}
+
+	// Optionally: Reset any other relevant state
+	currentState = NotInitialized
+	playbackTime = 0
+	resetVisualization() // Reset any ongoing visualization updates
+
+	// Log out that the file has been ejected
+	log.Println("Ejected current file and reset state.")
+
+}
 func stop() {
 	if currentState != NotInitialized && currentState != Finished {
 		globalOtoCtx.Suspend()
@@ -205,6 +234,7 @@ func playAudio(w *app.Window) {
 	// Create a player that plays from the TeeReader.
 	player := otoCtx.NewPlayer(tee)
 	player.Play()
+	currentPlayer = player
 	currentState = Playing
 
 	// Visualization update loop: update at a fixed 60 FPS.
@@ -266,8 +296,8 @@ func render(gtx layout.Context, th *material.Theme, ops op.Ops, e app.FrameEvent
 				// Render the audio visualization
 				if len(audioRingBuffer) > 0 {
 					// Create a container for the waveform visualization
-					if gtx.Constraints.Max.X > 320 { // TODO: Remove magic number, must be large enough or will negative index
-						return renderWaveform(gtx, gtx.Constraints.Max.X-320, gtx.Constraints.Max.Y) // TODO: Calculate based on button size...
+					if gtx.Constraints.Max.X > 330 { // TODO: Remove magic number, must be large enough or will negative index
+						return renderWaveform(gtx, gtx.Constraints.Max.X-330, gtx.Constraints.Max.Y) // TODO: Calculate based on button size...
 					}
 				}
 				return layout.Dimensions{}
