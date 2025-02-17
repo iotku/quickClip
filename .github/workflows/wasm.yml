@@ -1,0 +1,41 @@
+name: Deploy Gio WebApp
+
+on:
+  push:
+    branches:
+      - main  # Adjust if using a different branch
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+
+      - name: Install `gogio`
+        run: go install gioui.org/cmd/gogio@latest
+
+      - name: Build Gio WebApp for WebAssembly
+        run: |
+          mkdir -p build
+          gogio -target js -o build .
+
+      - name: Move files to root-friendly directory
+        run: |
+          mv build/command-line-arguments/* build/
+          rm -rf build/command-line-arguments
+
+      - name: Deploy to GitHub Pages
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          branch: gh-pages
+          folder: build  # Deploying "build" as the root
