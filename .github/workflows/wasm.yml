@@ -25,6 +25,15 @@ jobs:
       - name: Install `gogio`
         run: go install gioui.org/cmd/gogio@latest
 
+      - name: Ensure `wasm_exec.js` is available before build
+        run: |
+          WASM_EXEC_PATH="$(go env GOROOT)/misc/wasm/wasm_exec.js"
+          if [ ! -f "$WASM_EXEC_PATH" ]; then
+            echo "Downloading wasm_exec.js..."
+            mkdir -p $(go env GOROOT)/misc/wasm/
+            curl -o $(go env GOROOT)/misc/wasm/wasm_exec.js https://raw.githubusercontent.com/golang/go/refs/heads/master/lib/wasm/wasm_exec.js
+          fi
+
       - name: Build Gio WebApp for WebAssembly
         run: |
           mkdir -p build
@@ -35,18 +44,8 @@ jobs:
           mv build/command-line-arguments/* build/
           rm -rf build/command-line-arguments
 
-      - name: Ensure wasm_exec.js is available
-        run: |
-          WASM_EXEC_PATH="$(go env GOROOT)/misc/wasm/wasm_exec.js"
-          if [ ! -f "$WASM_EXEC_PATH" ]; then
-            echo "Downloading wasm_exec.js..."
-            curl -o build/wasm_exec.js https://raw.githubusercontent.com/golang/go/refs/heads/master/lib/wasm/wasm_exec.js
-          else
-            cp "$WASM_EXEC_PATH" build/
-          fi
-
       - name: Deploy to GitHub Pages
         uses: JamesIves/github-pages-deploy-action@v4
         with:
           branch: gh-pages
-          folder: build
+          folder: build  # Deploy "build" as the root
