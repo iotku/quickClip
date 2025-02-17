@@ -3,7 +3,6 @@
 package main
 
 import (
-	"bytes"
 	"encoding/binary"
 	"gioui.org/f32"
 	"gioui.org/op/clip"
@@ -41,7 +40,7 @@ var currentPlayer *oto.Player // Track the current player
 var uiReadyChan = make(chan struct{})
 
 const bufferSize = 44100 * 2 * 2 // 1 second of audio at 44.1kHz
-const audioLatencyOffset = 0.9   // Adjust this value as needed (in seconds) TODO: This is broken for values >= 1
+const audioLatencyOffset = 0     // Adjust this value as needed (in seconds) TODO: This is broken for values >= 1
 var audioRingBuffer = make([]byte, bufferSize)
 var ringWritePos = 0
 var playbackTime float64 = 0
@@ -338,6 +337,7 @@ func render(gtx layout.Context, th *material.Theme, ops op.Ops, e app.FrameEvent
 }
 
 func renderWaveform(gtx layout.Context, width, height int) layout.Dimensions {
+	// Early exit if there isn't enough audio data.
 	if len(audioRingBuffer) < 2 {
 		return layout.Dimensions{}
 	}
@@ -345,35 +345,28 @@ func renderWaveform(gtx layout.Context, width, height int) layout.Dimensions {
 	sampleRate := 44100
 	numSamples := width // One sample per pixel
 
-	// Find where to start rendering based on playbackTime
+	// Determine the starting sample based on playback time.
 	startSample := int((playbackTime - audioLatencyOffset) * float64(sampleRate))
 	startIndex := (startSample * 2) % bufferSize
-
-	// Ensure the startIndex is non-negative
 	if startIndex < 0 {
 		startIndex += bufferSize
 	}
 
-	// Extract samples
+	// Extract samples from the ring buffer.
 	samples := make([]int16, numSamples)
-
 	for i := 0; i < numSamples; i++ {
-		// Ensure sampleIndex is non-negative
 		sampleIndex := (startIndex + i*2) % bufferSize
 		if sampleIndex < 0 {
 			sampleIndex += bufferSize
 		}
-
-		// Ensure there are enough bytes to access
 		if sampleIndex+1 < len(audioRingBuffer) {
 			samples[i] = int16(binary.LittleEndian.Uint16(audioRingBuffer[sampleIndex : sampleIndex+2]))
 		} else {
-			// Handle the case where we don't have enough data yet
 			samples[i] = 0
 		}
 	}
 
-	// Find the maximum amplitude
+	// Determine the maximum amplitude.
 	var maxAmp float32 = 1
 	for _, s := range samples {
 		amp := float32(s)
@@ -426,7 +419,7 @@ func renderWaveform(gtx layout.Context, width, height int) layout.Dimensions {
 		}
 	}
 
-	// Mirror lower half
+	// Mirror the upper half to create the lower half of the waveform.
 	for i := len(samples) - 1; i >= 0; i-- {
 		x := float32(i) * step
 		y := centerY + smoothedSamples[i]
@@ -435,7 +428,7 @@ func renderWaveform(gtx layout.Context, width, height int) layout.Dimensions {
 
 	path.Close()
 
-	// Draw the waveform
+	// Draw the waveform.
 	paint.FillShape(gtx.Ops, color.NRGBA{R: 255, G: 0, B: 0, A: 255}, clip.Stroke{
 		Path:  path.End(),
 		Width: 2,
@@ -477,32 +470,16 @@ func resetVisualization() {
 // applyContrast applies a power function to increase contrast.
 // For positive values: result = normalized^exponent,
 // for negative values: result = -(|normalized|^exponent).
-func applyContrast(normalized float32, exponent float64) float32 {
+func applyContrast32(normalized, exponent float32) float32 {
 	if normalized >= 0 {
-		return float32(math.Pow(float64(normalized), exponent))
+		return float32(math.Pow(float64(normalized), float64(exponent)))
 	}
-	return -float32(math.Pow(float64(-normalized), exponent))
+	return -float32(math.Pow(float64(-normalized), float64(exponent)))
 }
 
-// WASM workaround
-func unlockAudioContext() {
-	if globalOtoCtx != nil {
-		// Resume the context immediately.
-		globalOtoCtx.Resume()
-
-		// Create a short silent buffer (e.g. 100ms of silence).
-		silentDuration := 0.1 // in seconds
-		sampleRate := 44100
-		// For stereo 16-bit audio, each sample takes 4 bytes.
-		numBytes := int(float64(sampleRate) * silentDuration * 4)
-		silentBuffer := make([]byte, numBytes) // all zeros = silence
-
-		// Create a player for the silent buffer.
-		player := globalOtoCtx.NewPlayer(bytes.NewReader(silentBuffer))
-		player.Play()
-
-		// Let it play for a short while, then close.
-		time.Sleep(100 * time.Millisecond)
-		player.Close()
+func abs32(f float32) float32 {
+	if f < 0 {
+		return -f
 	}
+	return f
 }
