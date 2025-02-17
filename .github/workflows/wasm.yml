@@ -3,7 +3,7 @@ name: Deploy Gio WebApp
 on:
   push:
     branches:
-      - main  # Adjust if using a different branch
+      - main
   workflow_dispatch:
 
 permissions:
@@ -35,8 +35,18 @@ jobs:
           mv build/command-line-arguments/* build/
           rm -rf build/command-line-arguments
 
+      - name: Ensure wasm_exec.js is available
+        run: |
+          WASM_EXEC_PATH="$(go env GOROOT)/misc/wasm/wasm_exec.js"
+          if [ ! -f "$WASM_EXEC_PATH" ]; then
+            echo "Downloading wasm_exec.js..."
+            curl -o build/wasm_exec.js https://raw.githubusercontent.com/golang/go/refs/heads/master/lib/wasm/wasm_exec.js
+          else
+            cp "$WASM_EXEC_PATH" build/
+          fi
+
       - name: Deploy to GitHub Pages
         uses: JamesIves/github-pages-deploy-action@v4
         with:
           branch: gh-pages
-          folder: build  # Deploying "build" as the root
+          folder: build
