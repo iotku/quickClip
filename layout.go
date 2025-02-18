@@ -47,7 +47,7 @@ func render(gtx layout.Context, th *material.Theme, ops op.Ops, e app.FrameEvent
 	}.Layout(gtx,
 		layout.Flexed(1,
 			func(gtx C) D {
-				return renderWaveform(gtx, gtx.Constraints.Max.X, gtx.Constraints.Max.Y) // TODO: Calculate based on button size...
+				return renderWaveform(gtx, gtx.Constraints.Max.X, gtx.Constraints.Max.Y)
 			},
 		),
 		layout.Rigid(
