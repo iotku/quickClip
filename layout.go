@@ -45,16 +45,9 @@ func render(gtx layout.Context, th *material.Theme, ops op.Ops, e app.FrameEvent
 		// Empty space is left at the start, i.e. at the top
 		Spacing: layout.SpaceStart,
 	}.Layout(gtx,
-		layout.Rigid(
+		layout.Flexed(1,
 			func(gtx C) D {
-				// Render the audio visualization
-				if len(audioRingBuffer) > 0 {
-					// Create a container for the waveform visualization
-					if gtx.Constraints.Max.X > 330 { // TODO: Remove magic number, must be large enough or will negative index
-						return renderWaveform(gtx, gtx.Constraints.Max.X-330, gtx.Constraints.Max.Y) // TODO: Calculate based on button size...
-					}
-				}
-				return layout.Dimensions{}
+				return renderWaveform(gtx, gtx.Constraints.Max.X, gtx.Constraints.Max.Y) // TODO: Calculate based on button size...
 			},
 		),
 		layout.Rigid(
