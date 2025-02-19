@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/binary"
 	"gioui.org/f32"
 	"gioui.org/layout"
 	"gioui.org/op/clip"
@@ -9,6 +8,7 @@ import (
 	"image"
 	"image/color"
 	"math"
+	"unsafe"
 )
 
 var smoothedSamples []float32
@@ -20,7 +20,7 @@ func renderWaveform(gtx layout.Context, width, height int) layout.Dimensions {
 	}
 
 	sampleRate := 44100
-	numSamples := width // One sample per pixel
+	numSamples := width / 2 // 1/2 sample per pixel
 
 	// Determine the starting sample based on playback time.
 	startSample := int((playbackTime - audioLatencyOffset) * float64(sampleRate))
@@ -29,18 +29,19 @@ func renderWaveform(gtx layout.Context, width, height int) layout.Dimensions {
 		startIndex += bufferSize
 	}
 
-	// Extract samples from the ring buffer.
-	samples := make([]int16, numSamples)
-	for i := 0; i < numSamples; i++ {
-		sampleIndex := (startIndex + i*2) % bufferSize
-		if sampleIndex < 0 {
-			sampleIndex += bufferSize
-		}
-		if sampleIndex+1 < len(audioRingBuffer) {
-			samples[i] = int16(binary.LittleEndian.Uint16(audioRingBuffer[sampleIndex : sampleIndex+2]))
-		} else {
-			samples[i] = 0
-		}
+	// Ensure startIndex is even.
+	if startIndex%2 != 0 {
+		startIndex++
+	}
+
+	// Determine the number of bytes needed.
+	numBytes := numSamples * 2
+	var samples []int16
+	// If the region is contiguous:
+	if startIndex+numBytes <= len(audioRingBuffer) {
+		// Get a direct view into the buffer.
+		samples = bytesToInt16Slice(audioRingBuffer[startIndex : startIndex+numBytes])
+		// Now process int16Samples directly.
 	}
 
 	// Determine the maximum amplitude.
@@ -64,16 +65,12 @@ func renderWaveform(gtx layout.Context, width, height int) layout.Dimensions {
 	exponent := float32(2.5)
 	threshold := float32(0.15)
 
-	// Reuse the smoothedSamples slice if possible.
-	if len(smoothedSamples) != numSamples {
-		smoothedSamples = make([]float32, numSamples)
-	}
-
 	alpha := float32(0.2)
 
 	var path clip.Path
 	path.Begin(gtx.Ops)
-
+	// Slice to store lower half points.
+	var lowerPoints []f32.Point
 	// Process samples to compute smoothed amplitude and build the upper path.
 	for i, s := range samples {
 		if len(smoothedSamples) != numSamples {
@@ -86,21 +83,24 @@ func renderWaveform(gtx layout.Context, width, height int) layout.Dimensions {
 		contrasted := applyContrast32(normalized, exponent)
 		scaled := contrasted * maxHeight
 		smoothedSamples[i] = smoothedSamples[i]*(1-alpha) + scaled*alpha
-
 		x := float32(i) * step
-		y := centerY - smoothedSamples[i]
+		yUpper := centerY - smoothedSamples[i]
+		yLower := centerY + smoothedSamples[i]
+		ptUpper := f32.Pt(x, yUpper)
+		ptLower := f32.Pt(x, yLower)
+		// Build the upper half path.
 		if i == 0 {
-			path.MoveTo(f32.Pt(x, y))
+			path.MoveTo(ptUpper)
 		} else {
-			path.LineTo(f32.Pt(x, y))
+			path.LineTo(ptUpper)
 		}
+		// Add lower half in reverse order
+		lowerPoints = append(lowerPoints, ptLower)
 	}
 
-	// Mirror the upper half to create the lower half of the waveform.
-	for i := len(samples) - 1; i >= 0; i-- {
-		x := float32(i) * step
-		y := centerY + smoothedSamples[i]
-		path.LineTo(f32.Pt(x, y))
+	// Append the lower half in reverse order.
+	for i := len(lowerPoints) - 1; i >= 0; i-- {
+		path.LineTo(lowerPoints[i])
 	}
 
 	path.Close()
@@ -152,4 +152,13 @@ func applyContrast32(normalized, exponent float32) float32 {
 		return float32(math.Pow(float64(normalized), float64(exponent)))
 	}
 	return -float32(math.Pow(float64(-normalized), float64(exponent)))
+}
+
+// Risk it for the biscuit
+func bytesToInt16Slice(b []byte) []int16 {
+	n := len(b) / 2
+	if n == 0 {
+		return nil
+	}
+	return unsafe.Slice((*int16)(unsafe.Pointer(&b[0])), n)
 }
