@@ -20,7 +20,7 @@ func renderWaveform(gtx layout.Context, width, height int) layout.Dimensions {
 	}
 
 	sampleRate := 44100
-	numSamples := width / 2 // 1/2 sample per pixel
+	numSamples := width / 4 // 1/4 sample per pixel
 
 	// Determine the starting sample based on playback time.
 	startSample := int((playbackTime - audioLatencyOffset) * float64(sampleRate))
@@ -71,11 +71,12 @@ func renderWaveform(gtx layout.Context, width, height int) layout.Dimensions {
 	path.Begin(gtx.Ops)
 	// Slice to store lower half points.
 	var lowerPoints []f32.Point
-	// Process samples to compute smoothed amplitude and build the upper path.
+	// Ensure smoothedSamples is allocated.
+	if len(smoothedSamples) != numSamples {
+		smoothedSamples = make([]float32, numSamples)
+	}
+	// First, update smoothedSamples from the raw samples.
 	for i, s := range samples {
-		if len(smoothedSamples) != numSamples {
-			smoothedSamples = make([]float32, numSamples)
-		}
 		normalized := float32(s) / maxAmp
 		if abs32(normalized) < threshold {
 			normalized = 0
@@ -83,26 +84,30 @@ func renderWaveform(gtx layout.Context, width, height int) layout.Dimensions {
 		contrasted := applyContrast32(normalized, exponent)
 		scaled := contrasted * maxHeight
 		smoothedSamples[i] = smoothedSamples[i]*(1-alpha) + scaled*alpha
+	}
+
+	// Now build the waveform path using only smoothedSamples.
+	for i, s := range smoothedSamples {
 		x := float32(i) * step
-		yUpper := centerY - smoothedSamples[i]
-		yLower := centerY + smoothedSamples[i]
+		yUpper := centerY - s
+		yLower := centerY + s
 		ptUpper := f32.Pt(x, yUpper)
 		ptLower := f32.Pt(x, yLower)
-		// Build the upper half path.
+
 		if i == 0 {
 			path.MoveTo(ptUpper)
 		} else {
 			path.LineTo(ptUpper)
 		}
-		// Add lower half in reverse order
+
+		// Collect the lower half points.
 		lowerPoints = append(lowerPoints, ptLower)
 	}
 
-	// Append the lower half in reverse order.
+	// Append the lower points in reverse order.
 	for i := len(lowerPoints) - 1; i >= 0; i-- {
 		path.LineTo(lowerPoints[i])
 	}
-
 	path.Close()
 
 	// Draw the waveform.
