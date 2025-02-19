@@ -12,6 +12,7 @@ import (
 )
 
 var smoothedSamples []float32
+var delaySeconds = .75
 
 func renderWaveform(gtx layout.Context, width, height int) layout.Dimensions {
 	// Early exit if there isn't enough audio data.
@@ -19,28 +20,30 @@ func renderWaveform(gtx layout.Context, width, height int) layout.Dimensions {
 		return layout.Dimensions{}
 	}
 
-	sampleRate := 44100
-	numSamples := width / 6 // 1/6 sample per pixel TODO: Expose as performance setting
-
-	// Determine the starting sample based on playback time.
-	startSample := int((playbackTime - audioLatencyOffset) * float64(sampleRate))
-	startIndex := (startSample * 2) % bufferSize
-	if startIndex < 0 {
-		startIndex += bufferSize
-	}
-
-	// Ensure startIndex is even.
-	if startIndex%2 != 0 {
-		startIndex++
-	}
-
-	// Determine the number of bytes needed.
+	reduce := 6
+	numSamples := width / reduce // 1/6 sample per pixel TODO: Expose as performance setting
 	numBytes := numSamples * 2
-	var samples []int16
+	if len(audioRingBuffer) < numBytes {
+		return layout.Dimensions{}
+	}
 
+	sampleRate := 44100
+	offsetSamples := int(delaySeconds * float64(sampleRate))
+	offsetBytes := offsetSamples * 2
+
+	// Start a few samples earlier than the latest sample.
+	startIndex := (ringWritePos + bufferSize - numBytes - offsetBytes) % bufferSize
+
+	// Handle potential wrap-around by splitting the read if necessary.
+	var samples []int16
 	if startIndex+numBytes <= len(audioRingBuffer) {
-		// Get a direct view into the buffer.
 		samples = bytesToInt16Slice(audioRingBuffer[startIndex : startIndex+numBytes])
+	} else {
+		// When the slice wraps around, split it into two parts and combine.
+		firstPart := audioRingBuffer[startIndex:]
+		secondPart := audioRingBuffer[:numBytes-len(firstPart)]
+		combined := append(firstPart, secondPart...)
+		samples = bytesToInt16Slice(combined)
 	}
 
 	// Determine the maximum amplitude.
@@ -61,10 +64,22 @@ func renderWaveform(gtx layout.Context, width, height int) layout.Dimensions {
 	centerY := float32(height) / 2
 
 	// Use float32 contrast parameters.
-	exponent := float32(2.0)
-	threshold := float32(0.15)
+	exponent := float32(2.5)
+	threshold := float32(0.3)
 
 	alpha := float32(0.25)
+	// Now draw the center line and waveform using the current smoothedSamples.
+	// Draw a static center line.
+	var centerLinePath clip.Path
+	centerLinePath.Begin(gtx.Ops)
+	centerLinePath.MoveTo(f32.Pt(0, centerY))
+	centerLinePath.LineTo(f32.Pt(float32(width), centerY))
+	paint.FillShape(gtx.Ops,
+		color.NRGBA{R: 255, G: 0, B: 0, A: 255},
+		clip.Stroke{
+			Path:  centerLinePath.End(),
+			Width: 1,
+		}.Op())
 
 	var path clip.Path
 	path.Begin(gtx.Ops)
@@ -73,11 +88,18 @@ func renderWaveform(gtx layout.Context, width, height int) layout.Dimensions {
 	if len(smoothedSamples) != numSamples {
 		smoothedSamples = make([]float32, numSamples)
 	}
+
+	var lastNormalized float32 = 0
 	// First, update smoothedSamples from the raw samples.
 	for i, s := range samples {
 		normalized := float32(s) / maxAmp
+		// If the current sample is below the threshold, use a decayed version of the last known value.
 		if abs32(normalized) < threshold {
-			normalized = 0
+			// Decay the previous value by a factor (e.g., 5% per sample).
+			normalized = lastNormalized * 0.90
+		} else {
+			// Update lastNormalized if the sample is loud enough.
+			lastNormalized = normalized
 		}
 		contrasted := applyContrast32(normalized, exponent)
 		scaled := contrasted * maxHeight
@@ -94,7 +116,7 @@ func renderWaveform(gtx layout.Context, width, height int) layout.Dimensions {
 		color.NRGBA{R: 255, G: 0, B: 0, A: 255},
 		clip.Stroke{
 			Path:  path.End(),
-			Width: 2,
+			Width: float32(reduce),
 		}.Op())
 
 	return layout.Dimensions{Size: image.Point{X: width, Y: height}}
@@ -103,6 +125,7 @@ func renderWaveform(gtx layout.Context, width, height int) layout.Dimensions {
 func updateVisualization(data []byte) {
 	frameDuration := float64(len(data)) / float64(bufferSize) // 16-bit stereo
 	playbackTime += frameDuration
+	//fmt.Println(audioRingBuffer)
 
 	// Ensure we wrap around correctly
 	copy(audioRingBuffer[ringWritePos:], data)
