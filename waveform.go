@@ -20,7 +20,7 @@ func renderWaveform(gtx layout.Context, width, height int) layout.Dimensions {
 	}
 
 	sampleRate := 44100
-	numSamples := width / 4 // 1/4 sample per pixel
+	numSamples := width / 6 // 1/6 sample per pixel TODO: Expose as performance setting
 
 	// Determine the starting sample based on playback time.
 	startSample := int((playbackTime - audioLatencyOffset) * float64(sampleRate))
@@ -37,11 +37,10 @@ func renderWaveform(gtx layout.Context, width, height int) layout.Dimensions {
 	// Determine the number of bytes needed.
 	numBytes := numSamples * 2
 	var samples []int16
-	// If the region is contiguous:
+
 	if startIndex+numBytes <= len(audioRingBuffer) {
 		// Get a direct view into the buffer.
 		samples = bytesToInt16Slice(audioRingBuffer[startIndex : startIndex+numBytes])
-		// Now process int16Samples directly.
 	}
 
 	// Determine the maximum amplitude.
@@ -62,15 +61,14 @@ func renderWaveform(gtx layout.Context, width, height int) layout.Dimensions {
 	centerY := float32(height) / 2
 
 	// Use float32 contrast parameters.
-	exponent := float32(2.5)
+	exponent := float32(2.0)
 	threshold := float32(0.15)
 
-	alpha := float32(0.2)
+	alpha := float32(0.25)
 
 	var path clip.Path
 	path.Begin(gtx.Ops)
-	// Slice to store lower half points.
-	var lowerPoints []f32.Point
+
 	// Ensure smoothedSamples is allocated.
 	if len(smoothedSamples) != numSamples {
 		smoothedSamples = make([]float32, numSamples)
@@ -84,37 +82,20 @@ func renderWaveform(gtx layout.Context, width, height int) layout.Dimensions {
 		contrasted := applyContrast32(normalized, exponent)
 		scaled := contrasted * maxHeight
 		smoothedSamples[i] = smoothedSamples[i]*(1-alpha) + scaled*alpha
-	}
-
-	// Now build the waveform path using only smoothedSamples.
-	for i, s := range smoothedSamples {
 		x := float32(i) * step
-		yUpper := centerY - s
-		yLower := centerY + s
-		ptUpper := f32.Pt(x, yUpper)
-		ptLower := f32.Pt(x, yLower)
-
-		if i == 0 {
-			path.MoveTo(ptUpper)
-		} else {
-			path.LineTo(ptUpper)
-		}
-
-		// Collect the lower half points.
-		lowerPoints = append(lowerPoints, ptLower)
+		path.MoveTo(f32.Pt(x, centerY-smoothedSamples[i]))
+		path.LineTo(f32.Pt(x, centerY+(smoothedSamples[i])))
 	}
 
-	// Append the lower points in reverse order.
-	for i := len(lowerPoints) - 1; i >= 0; i-- {
-		path.LineTo(lowerPoints[i])
-	}
 	path.Close()
 
 	// Draw the waveform.
-	paint.FillShape(gtx.Ops, color.NRGBA{R: 255, G: 0, B: 0, A: 255}, clip.Stroke{
-		Path:  path.End(),
-		Width: 2,
-	}.Op())
+	paint.FillShape(gtx.Ops,
+		color.NRGBA{R: 255, G: 0, B: 0, A: 255},
+		clip.Stroke{
+			Path:  path.End(),
+			Width: 2,
+		}.Op())
 
 	return layout.Dimensions{Size: image.Point{X: width, Y: height}}
 }
