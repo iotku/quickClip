@@ -20,7 +20,7 @@ func openFileDialog(w *app.Window) {
 	}
 
 	// Open file dialog for a single MP3 file
-	reader, err := fileDialog.ChooseFile("mp3")
+	reader, err := fileDialog.ChooseFile(".mp3")
 	if err != nil {
 		log.Println("Error selecting file:", err)
 		return
