@@ -12,7 +12,7 @@ import (
 )
 
 var smoothedSamples []float32
-var delaySeconds = .75
+var delaySeconds = .80
 
 func renderWaveform(gtx layout.Context, width, height int) layout.Dimensions {
 	// Early exit if there isn't enough audio data.
@@ -20,8 +20,8 @@ func renderWaveform(gtx layout.Context, width, height int) layout.Dimensions {
 		return layout.Dimensions{}
 	}
 
-	reduce := 6
-	numSamples := width / reduce // 1/6 sample per pixel TODO: Expose as performance setting
+	reduce := 4
+	numSamples := width / reduce // 1/4 sample per pixel TODO: Expose as performance setting
 	numBytes := numSamples * 2
 	if len(audioRingBuffer) < numBytes {
 		return layout.Dimensions{}
@@ -64,9 +64,7 @@ func renderWaveform(gtx layout.Context, width, height int) layout.Dimensions {
 	centerY := float32(height) / 2
 
 	// Use float32 contrast parameters.
-	exponent := float32(2.5)
-	threshold := float32(0.3)
-
+	exponent := float32(10.)
 	alpha := float32(0.25)
 	// Now draw the center line and waveform using the current smoothedSamples.
 	// Draw a static center line.
@@ -89,17 +87,20 @@ func renderWaveform(gtx layout.Context, width, height int) layout.Dimensions {
 		smoothedSamples = make([]float32, numSamples)
 	}
 
-	var lastNormalized float32 = 0
 	// First, update smoothedSamples from the raw samples.
 	for i, s := range samples {
-		normalized := float32(s) / maxAmp
-		// If the current sample is below the threshold, use a decayed version of the last known value.
-		if abs32(normalized) < threshold {
-			// Decay the previous value by a factor (e.g., 5% per sample).
-			normalized = lastNormalized * 0.90
-		} else {
-			// Update lastNormalized if the sample is loud enough.
-			lastNormalized = normalized
+		dbMin := -40.0 // Silence threshold
+		sampleFloat := float64(s) / float64(maxAmp)
+
+		// Convert to dB, ensuring no log(0) issues
+		db := 20 * math.Log10(math.Max(1e-5, math.Abs(sampleFloat)))
+
+		// Normalize dB scale, ensuring silence stays at zero
+		normalized := float32((db - dbMin) / (-dbMin))
+
+		// Clamp values to avoid unwanted visual expansion
+		if db <= dbMin {
+			normalized = 0
 		}
 		contrasted := applyContrast32(normalized, exponent)
 		scaled := contrasted * maxHeight
