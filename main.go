@@ -3,6 +3,7 @@
 package main
 
 import (
+	"fmt"
 	"gioui.org/app"
 	"gioui.org/font/gofont"
 	"gioui.org/layout"
@@ -20,6 +21,7 @@ type C = layout.Context
 type D = layout.Dimensions
 
 var openButton, backButton, fwdButton, playButton, stopButton widget.Clickable
+var volumeSlider widget.Float // widget state for the slider
 
 // Channel to signal when the UI is ready
 var uiReadyChan = make(chan struct{})
@@ -28,7 +30,7 @@ func main() {
 	go func() {
 		w := new(app.Window)
 		w.Option(app.Title("QuickClip"))
-		w.Option(app.Size(unit.Dp(800), unit.Dp(600)))
+		w.Option(app.Size(unit.Dp(800), unit.Dp(400)))
 		fileDialog = explorer.NewExplorer(w)
 
 		// Notify that the UI is ready
@@ -50,6 +52,7 @@ func main() {
 func loop(w *app.Window) error {
 	th := material.NewTheme()
 	th.Shaper = text.NewShaper(text.WithCollection(gofont.Collection()))
+	volumeSlider.Value = float32(playbackVolume)
 	var ops op.Ops
 	for {
 		e := w.Event()
@@ -67,7 +70,14 @@ func loop(w *app.Window) error {
 			if stopButton.Clicked(gtx) {
 				stop()
 			}
-			render(gtx, th, ops, evt)
+			if volumeSlider.Update(gtx) {
+				if currentPlayer != nil {
+					currentPlayer.SetVolume(float64(volumeSlider.Value))
+				}
+				playbackVolume = float64(volumeSlider.Value)
+				fmt.Println("Set player volume to: ", volumeSlider.Value)
+			}
+			render(gtx, th, evt)
 		}
 	}
 }

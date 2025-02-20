@@ -14,10 +14,10 @@ var currentPlayer *oto.Player // Track the current player
 var globalOtoCtx *oto.Context
 
 const bufferSize = 44100 * 2 * 2 // 1 second of audio at 44.1kHz
-const audioLatencyOffset = 0     // Adjust this value as needed (in seconds) TODO: This is broken for values >= 1
 var audioRingBuffer = make([]byte, bufferSize)
 var ringWritePos = 0
 var playbackTime float64 = 0
+var playbackVolume float64 = 0.7 // initial playbackVolume 70%
 
 type PlaybackState int
 
@@ -90,6 +90,7 @@ func playAudio(w *app.Window) {
 
 	// Create a player that plays from the TeeReader.
 	player := otoCtx.NewPlayer(tee)
+	player.SetVolume(playbackVolume)
 	player.Play()
 	currentPlayer = player
 	currentState = Playing
