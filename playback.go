@@ -30,7 +30,7 @@ const (
 
 var currentState PlaybackState = NotInitialized
 
-func intializeOtoCtx() {
+func initializeOtoCtx() {
 	if globalOtoCtx != nil {
 		return
 	}

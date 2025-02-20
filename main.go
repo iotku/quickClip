@@ -3,7 +3,6 @@
 package main
 
 import (
-	"fmt"
 	"gioui.org/app"
 	"gioui.org/font/gofont"
 	"gioui.org/layout"
@@ -44,7 +43,7 @@ func main() {
 
 	// Wait for the UI to be ready before initializing Oto
 	<-uiReadyChan
-	intializeOtoCtx()
+	initializeOtoCtx()
 	app.Main()
 
 }
@@ -75,7 +74,6 @@ func loop(w *app.Window) error {
 					currentPlayer.SetVolume(float64(volumeSlider.Value))
 				}
 				playbackVolume = float64(volumeSlider.Value)
-				fmt.Println("Set player volume to: ", volumeSlider.Value)
 			}
 			render(gtx, th, evt)
 		}

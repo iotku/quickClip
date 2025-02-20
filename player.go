@@ -3,7 +3,6 @@ package main
 import (
 	"gioui.org/app"
 	"log"
-	"time"
 )
 
 func play(w *app.Window) {
@@ -15,10 +14,7 @@ func play(w *app.Window) {
 	if currentState == Suspended {
 		currentState = Playing
 	} else {
-		// Schedule playAudio after a very short delay  // work around WASM bugs
-		time.AfterFunc(5*time.Millisecond, func() {
-			go playAudio(w)
-		})
+		go playAudio(w)
 	}
 }
 
