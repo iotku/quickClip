@@ -13,12 +13,13 @@ var currentReader io.Reader
 var currentPlayer *oto.Player // Track the current player
 var globalOtoCtx *oto.Context
 
-const bufferSize = 44100 * 2 * 2 // 1 second of audio at 44.1kHz
+const bufferSize = 44100 * 2 * 2 // 1 second of STEREO audio at 44.1kHz
 var audioRingBuffer = make([]byte, bufferSize)
 var ringWritePos = 0
-var playbackTime float64 = 0
-var playbackVolume float64 = 0.7 // initial playbackVolume 70%
+var playbackTime = 0.0
+var playbackVolume = 0.7 // initial playbackVolume 70%
 
+// PlaybackState contains the various possible states of our playback
 type PlaybackState int
 
 const (
@@ -34,11 +35,8 @@ func initializeOtoCtx() {
 	if globalOtoCtx != nil {
 		return
 	}
-	// Initialize the global Oto context once here.
-	// Note: Choose options that work for your app.
-	// If you later need a different sample rate (e.g., from an MP3),
-	// you might need to convert or resample, because reinitializing
-	// is not allowed.
+	// Initialize the global Oto context once (!)
+	// reinitializing the global context is not allowed and will PANIC
 	opts := &oto.NewContextOptions{
 		SampleRate:   44100,
 		ChannelCount: 2,
@@ -65,7 +63,7 @@ func getOtoContext() *oto.Context {
 // playAudio now uses a TeeReader to split the stream.
 func playAudio(w *app.Window) {
 	if currentReader == nil {
-		log.Println("No audio reader")
+		log.Println("playAudio: No audio reader")
 		return
 	} else if currentState == Playing {
 		return
@@ -79,9 +77,10 @@ func playAudio(w *app.Window) {
 		return
 	}
 
-	// Wrap the decoder with a TeeReader. The TeeReader will write all data
-	// that is read by the player into a buffer that we can read from for visualization.
-	// For simplicity, we'll use a channel to pass chunks of data.
+	// The TeeReader will write all data that is read by the player into a buffer
+	// that we can read from for visualization sent via the visualCh channel.
+	//
+	// This way we avoid disrupting the mp3 decoding by working on a copy.
 	visualCh := make(chan []byte, 10)
 	tee := io.TeeReader(decodedMp3, newChunkWriter(visualCh))
 
@@ -96,6 +95,7 @@ func playAudio(w *app.Window) {
 	currentState = Playing
 
 	// Visualization update loop: update at a fixed 60 FPS.
+	// TODO: Possible to get monitor refresh rate or VSYNC at 60?
 	ticker := time.NewTicker(time.Millisecond * 16) // ~60 FPS
 	defer ticker.Stop()
 
@@ -105,8 +105,7 @@ func playAudio(w *app.Window) {
 			// Use the latest chunk for visualization.
 			updateVisualization(chunk)
 			w.Invalidate()
-		case <-ticker.C:
-			// Even if no new chunk is available, force a redraw.
+		case <-ticker.C: // Force redraw at ticker interval
 			w.Invalidate()
 		}
 	}

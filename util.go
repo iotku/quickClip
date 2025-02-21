@@ -5,6 +5,7 @@ type chunkWriter struct {
 	ch chan<- []byte
 }
 
+// chunkWriter factory to build a new chunkWriter
 func newChunkWriter(ch chan<- []byte) *chunkWriter {
 	return &chunkWriter{ch: ch}
 }
@@ -19,11 +20,4 @@ func (cw *chunkWriter) Write(p []byte) (n int, err error) {
 	default:
 	}
 	return len(p), nil
-}
-
-func abs32(f float32) float32 {
-	if f < 0 {
-		return -f
-	}
-	return f
 }

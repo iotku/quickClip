@@ -58,15 +58,15 @@ func renderWaveform(gtx layout.Context, width, height int) layout.Dimensions {
 		}
 	}
 
-	// Pre-calculate drawing parameters as float32.
+	// Pre-calculate drawing parameters
 	maxHeight := float32(height) / 2
 	step := float32(width) / float32(numSamples)
 	centerY := float32(height) / 2
 
-	// Use float32 contrast parameters.
+	// Contrast parameters to make waveform more distinct
 	exponent := float32(10.)
 	alpha := float32(0.25)
-	// Now draw the center line and waveform using the current smoothedSamples.
+
 	// Draw a static center line.
 	var centerLinePath clip.Path
 	centerLinePath.Begin(gtx.Ops)
@@ -79,10 +79,10 @@ func renderWaveform(gtx layout.Context, width, height int) layout.Dimensions {
 			Width: 1,
 		}.Op())
 
+	// Build the waveform
 	var path clip.Path
 	path.Begin(gtx.Ops)
 
-	// Ensure smoothedSamples is allocated.
 	if len(smoothedSamples) != numSamples {
 		smoothedSamples = make([]float32, numSamples)
 	}
@@ -102,9 +102,12 @@ func renderWaveform(gtx layout.Context, width, height int) layout.Dimensions {
 		if db <= dbMin {
 			normalized = 0
 		}
+
 		contrasted := applyContrast32(normalized, exponent)
 		scaled := contrasted * maxHeight
 		smoothedSamples[i] = smoothedSamples[i]*(1-alpha) + scaled*alpha
+
+		// Draw lines for each sample of the waveform
 		x := float32(i) * step
 		path.MoveTo(f32.Pt(x, centerY-smoothedSamples[i]))
 		path.LineTo(f32.Pt(x, centerY+(smoothedSamples[i])))
@@ -112,7 +115,7 @@ func renderWaveform(gtx layout.Context, width, height int) layout.Dimensions {
 
 	path.Close()
 
-	// Draw the waveform.
+	// Fill in the waveform.
 	paint.FillShape(gtx.Ops,
 		color.NRGBA{R: 255, G: 0, B: 0, A: 255},
 		clip.Stroke{
@@ -126,7 +129,6 @@ func renderWaveform(gtx layout.Context, width, height int) layout.Dimensions {
 func updateVisualization(data []byte) {
 	frameDuration := float64(len(data)) / float64(bufferSize) // 16-bit stereo
 	playbackTime += frameDuration
-	//fmt.Println(audioRingBuffer)
 
 	// Ensure we wrap around correctly
 	copy(audioRingBuffer[ringWritePos:], data)
@@ -155,8 +157,6 @@ func resetVisualization() {
 }
 
 // applyContrast applies a power function to increase contrast.
-// For positive values: result = normalized^exponent,
-// for negative values: result = -(|normalized|^exponent).
 func applyContrast32(normalized, exponent float32) float32 {
 	if normalized >= 0 {
 		return float32(math.Pow(float64(normalized), float64(exponent)))
@@ -164,11 +164,11 @@ func applyContrast32(normalized, exponent float32) float32 {
 	return -float32(math.Pow(float64(-normalized), float64(exponent)))
 }
 
-// Risk it for the biscuit
+// Aggressively cast []byte into a []int16 view (unsafe!)
 func bytesToInt16Slice(b []byte) []int16 {
 	n := len(b) / 2
 	if n == 0 {
 		return nil
 	}
-	return unsafe.Slice((*int16)(unsafe.Pointer(&b[0])), n)
+	return unsafe.Slice((*int16)(unsafe.Pointer(&b[0])), n) // Risk it for the biscuit
 }

@@ -42,12 +42,15 @@ func main() {
 	}()
 
 	// Wait for the UI to be ready before initializing Oto
+	// This is important to allow the interface to show up before being blocked on WASM clients
+	// so they can interact with the page and unblock the audio context
 	<-uiReadyChan
 	initializeOtoCtx()
 	app.Main()
 
 }
 
+// Launch Gio rendering loop
 func loop(w *app.Window) error {
 	th := material.NewTheme()
 	th.Shaper = text.NewShaper(text.WithCollection(gofont.Collection()))

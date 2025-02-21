@@ -19,6 +19,7 @@ func openFileDialog(w *app.Window) {
 	}
 
 	// Open file dialog for a single MP3 file
+	// TODO: Support other file formats once we have more codec support
 	reader, err := fileDialog.ChooseFile(".mp3")
 	if err != nil {
 		log.Println("Error selecting file:", err)
@@ -51,10 +52,10 @@ func render(gtx layout.Context, th *material.Theme, e app.FrameEvent) {
 				Axis:    layout.Vertical,
 				Spacing: layout.SpaceStart,
 			}.Layout(gtx,
-				// Waveform: takes all available space except for progress bar.
 				layout.Flexed(1, func(gtx C) D {
 					return renderWaveform(gtx, gtx.Constraints.Max.X, gtx.Constraints.Max.Y)
 				}),
+				// TODO: Track progress with progress bar bellow waveform
 				// Progress bar: fixed height.
 				//layout.Rigid(func(gtx C) D {
 				//	// Wrap in an inset for a bit of padding.
@@ -68,7 +69,7 @@ func render(gtx layout.Context, th *material.Theme, e app.FrameEvent) {
 				//}),
 			)
 		}),
-		// Right column: control buttons arranged vertically.
+		// Right column
 		layout.Rigid(func(gtx C) D {
 			return layout.Flex{
 				Axis:    layout.Vertical,
@@ -93,11 +94,9 @@ func render(gtx layout.Context, th *material.Theme, e app.FrameEvent) {
 					return material.Button(th, &playButton, "Play").Layout(gtx)
 				}),
 				layout.Rigid(func(gtx C) D {
-					// Create a slider with a range of 0 to 1.
-					slider := material.Slider(th, &volumeSlider)
+					slider := material.Slider(th, &volumeSlider) // Default value set in Main
 					gtx.Constraints.Min.X = gtx.Dp(150)
 					gtx.Constraints.Max.X = gtx.Dp(150)
-					// Map the slider's value to playbackVolume. For example:
 					return slider.Layout(gtx)
 				}),
 			)

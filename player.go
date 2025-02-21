@@ -8,7 +8,11 @@ import (
 func play(w *app.Window) {
 	// Ensure the audio context is resumed immediately on a user gesture.
 	if globalOtoCtx != nil {
-		globalOtoCtx.Resume()
+		err := globalOtoCtx.Resume()
+		if err != nil {
+			log.Println("Error resuming gio context:", err)
+			return
+		}
 	}
 
 	if currentState == Suspended {
@@ -20,7 +24,11 @@ func play(w *app.Window) {
 
 func stop() {
 	if currentState != NotInitialized && currentState != Finished {
-		globalOtoCtx.Suspend()
+		err := globalOtoCtx.Suspend()
+		if err != nil {
+			log.Println("Error suspending gio context:", err)
+			return
+		}
 		currentState = Suspended
 	}
 }
