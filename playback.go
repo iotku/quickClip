@@ -153,9 +153,10 @@ func playAudio(w *app.Window) {
 		return
 	}
 
-	ctrl := &beep.Ctrl{Streamer: loopStreamer}
-	resampler := beep.ResampleRatio(4, 1, ctrl)
-	//volume := &effects.Volume{Streamer: resampler, Base: 2}
+	//ctrl := &beep.Ctrl{Streamer: loopStreamer}
+	// Resample to hardcoded 44100
+	resampler := beep.Resample(4, format.SampleRate, 44100, loopStreamer) // TODO: remove magic number
+	volume := &effects.Volume{Streamer: resampler, Base: 0}
 
 	// The TeeReader will write all data that is read by the player into a buffer
 	// that we can read from for visualization sent via the visualCh channel.
@@ -171,7 +172,7 @@ func playAudio(w *app.Window) {
 	log.Println("Play NOW")
 	done := make(chan bool)
 	currentState = Playing
-	speaker.Play(beep.Seq(resampler, beep.Callback(func() {
+	speaker.Play(beep.Seq(volume, beep.Callback(func() {
 		done <- true
 	})))
 	currentState = Finished
