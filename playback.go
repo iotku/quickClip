@@ -2,21 +2,18 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"log"
-
 	//"os"
 	//"path/filepath"
-	"time"
-
 	"gioui.org/app"
 	"github.com/gopxl/beep/v2"
 	"github.com/gopxl/beep/v2/effects"
 	"github.com/gopxl/beep/v2/mp3"
 	"github.com/gopxl/beep/v2/speaker"
-	"github.com/gopxl/beep/wav"
-	//"github.com/gopxl/beep/v2/wav"
+	"github.com/gopxl/beep/v2/wav"
 )
 
 var currentReader io.ReadCloser
@@ -83,7 +80,7 @@ type readCloserWrapper struct {
 }
 
 func (rcw *readCloserWrapper) Close() error {
-	return rcw.c.Close()
+	return nil // no-op`
 }
 
 // detectMagicBytes reads the first 12 bytes to determine the file type,
@@ -93,7 +90,7 @@ func detectMagicBytes(r io.ReadCloser) (string, io.ReadCloser, error) {
 	const headerSize = 12
 	header := make([]byte, headerSize)
 	n, err := io.ReadFull(r, header)
-	if err != nil && err != io.ErrUnexpectedEOF {
+	if err != nil && !errors.Is(err, io.ErrUnexpectedEOF) {
 		return "", nil, fmt.Errorf("error reading magic bytes: %w", err)
 	}
 	header = header[:n]
@@ -127,19 +124,21 @@ func playAudio(w *app.Window) {
 
 	var audioStreamer beep.StreamSeekCloser
 	var err error
+	var format beep.Format
 	audioType, newReader := getAudioType(currentReader)
 	currentReader = newReader
 	switch audioType {
 	case ".mp3":
 		log.Println("Using mp3 decoder")
-		audioStreamer, _, err = mp3.Decode(currentReader)
+		audioStreamer, format, err = mp3.Decode(currentReader)
 	case ".wav":
 		log.Println("Using wav decoder")
-		audioStreamer, _, err = wav.Decode(currentReader)
+		audioStreamer, format, err = wav.Decode(currentReader)
 	default:
 		log.Println("No decoder available for", audioType)
 		return
 	}
+	log.Println(format)
 
 	if err != nil {
 		log.Println("Decoder failed:", err)
@@ -156,7 +155,7 @@ func playAudio(w *app.Window) {
 
 	ctrl := &beep.Ctrl{Streamer: loopStreamer}
 	resampler := beep.ResampleRatio(4, 1, ctrl)
-	volume := &effects.Volume{Streamer: resampler, Base: 2}
+	//volume := &effects.Volume{Streamer: resampler, Base: 2}
 
 	// The TeeReader will write all data that is read by the player into a buffer
 	// that we can read from for visualization sent via the visualCh channel.
@@ -170,13 +169,16 @@ func playAudio(w *app.Window) {
 	//player.SetVolume(playbackVolume)
 	//player.Play()
 	log.Println("Play NOW")
-	speaker.Play(volume)
+	done := make(chan bool)
 	currentState = Playing
-
+	speaker.Play(beep.Seq(resampler, beep.Callback(func() {
+		done <- true
+	})))
+	currentState = Finished
 	// Visualization update loop: update at a fixed 60 FPS.
 	// TODO: Possible to get monitor refresh rate or VSYNC at 60?
-	ticker := time.NewTicker(time.Millisecond * 16) // ~60 FPS
-	defer ticker.Stop()
+	//ticker := time.NewTicker(time.Millisecond * 16) // ~60 FPS
+	//defer ticker.Stop()
 
 	//for player.IsPlaying() {
 	//		select {
@@ -192,5 +194,5 @@ func playAudio(w *app.Window) {
 	//		panic("player.Close failed: " + err.Error())
 	//	}
 	//	resetVisualization()
-	currentState = Finished
+
 }
