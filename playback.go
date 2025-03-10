@@ -148,9 +148,9 @@ func playAudio(w *app.Window) {
 		return
 	}
 
-	//ctrl := &beep.Ctrl{Streamer: loopStreamer}
+	ctrl := &beep.Ctrl{Streamer: loopStreamer}
 	// Resample to hardcoded 44100
-	resampler := beep.Resample(4, format.SampleRate, 44100, loopStreamer) // TODO: remove magic number
+	resampler := beep.Resample(4, format.SampleRate, 44100, ctrl) // TODO: remove magic number
 	volume := &effects.Volume{Streamer: resampler, Base: 0}
 
 	log.Println("Play NOW")
@@ -158,6 +158,7 @@ func playAudio(w *app.Window) {
 	currentState = Playing
 	speaker.Play(beep.Seq(volume, beep.Callback(func() {
 		done <- true
+		log.Println("Audio DONE")
+		currentState = Finished
 	})))
-	currentState = Finished
 }
