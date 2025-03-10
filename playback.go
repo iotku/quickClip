@@ -1,10 +1,13 @@
 package main
 
 import (
+	"bytes"
+	"fmt"
 	"io"
 	"log"
-	"os"
-	"path/filepath"
+
+	//"os"
+	//"path/filepath"
 	"time"
 
 	"gioui.org/app"
@@ -12,6 +15,8 @@ import (
 	"github.com/gopxl/beep/v2/effects"
 	"github.com/gopxl/beep/v2/mp3"
 	"github.com/gopxl/beep/v2/speaker"
+	"github.com/gopxl/beep/wav"
+	//"github.com/gopxl/beep/v2/wav"
 )
 
 var currentReader io.ReadCloser
@@ -54,6 +59,63 @@ func newAudioPanel(sampleRate beep.SampleRate, streamer beep.StreamSeeker) (*aud
 	return &audioPanel{sampleRate, streamer, ctrl, resampler, volume}, nil
 }
 
+// Read magic bytes to determine what type of audio we have
+func getAudioType(reader io.ReadCloser) (string, io.ReadCloser) {
+	//if file, ok := reader.(*os.File); ok { // Just use the file extension
+	//	fileExt := filepath.Ext(file.Name())
+	//	log.Println("Found", fileExt, "extension.")
+	//	return fileExt
+	//} else { // read the magic bytes (for WASM)
+	fileType, newRC, err := detectMagicBytes(reader)
+	if err != nil {
+		return "", nil
+	}
+
+	return fileType, newRC
+
+	//}
+}
+
+// readCloserWrapper wraps an io.Reader and an io.Closer so that it satisfies io.ReadCloser.
+type readCloserWrapper struct {
+	io.Reader
+	c io.Closer
+}
+
+func (rcw *readCloserWrapper) Close() error {
+	return rcw.c.Close()
+}
+
+// detectMagicBytes reads the first 12 bytes to determine the file type,
+// then returns a new io.ReadCloser that starts from byte position 0.
+func detectMagicBytes(r io.ReadCloser) (string, io.ReadCloser, error) {
+	// Read the first 12 bytes
+	const headerSize = 12
+	header := make([]byte, headerSize)
+	n, err := io.ReadFull(r, header)
+	if err != nil && err != io.ErrUnexpectedEOF {
+		return "", nil, fmt.Errorf("error reading magic bytes: %w", err)
+	}
+	header = header[:n]
+
+	var fileType string
+	switch {
+	case len(header) >= 12 && string(header[:4]) == "RIFF" && string(header[8:12]) == "WAVE":
+		fileType = ".wav"
+	case len(header) >= 3 && string(header[:3]) == "ID3":
+		fileType = ".mp3"
+	case len(header) >= 2 && header[0] == 0xFF && (header[1]&0xF6) == 0xF2:
+		fileType = ".mp3"
+	default:
+		log.Println("Could not determine audio type by magic bytes")
+	}
+
+	// Reconstruct a new ReadCloser that starts from the beginning:
+	// Prepend the already-read header back onto the remaining stream.
+	newReader := io.MultiReader(bytes.NewReader(header), r)
+	return fileType, &readCloserWrapper{Reader: newReader, c: r}, nil
+}
+
 // playAudio now uses a TeeReader to split the stream.
 func playAudio(w *app.Window) {
 	if currentReader == nil {
@@ -63,37 +125,32 @@ func playAudio(w *app.Window) {
 		return
 	}
 
-	reader := currentReader
-	var fileExt string
-	if file, ok := reader.(*os.File); ok {
-		fileExt = filepath.Ext(file.Name())
-		log.Println("Found", fileExt, "extension.")
-	} else {
-		log.Println("No valid file extension found.")
-		return
-	}
-
-	switch fileExt {
+	var audioStreamer beep.StreamSeekCloser
+	var err error
+	audioType, newReader := getAudioType(currentReader)
+	currentReader = newReader
+	switch audioType {
 	case ".mp3":
 		log.Println("Using mp3 decoder")
+		audioStreamer, _, err = mp3.Decode(currentReader)
 	case ".wav":
 		log.Println("Using wav decoder")
+		audioStreamer, _, err = wav.Decode(currentReader)
 	default:
-		log.Println("No decoder available for", fileExt)
-	}
-
-	audioStreamer, format, err := mp3.Decode(currentReader)
-	if err != nil {
-		log.Println("mp3.NewDecoder failed:", err)
+		log.Println("No decoder available for", audioType)
 		return
 	}
-	speaker.Init(format.SampleRate, format.SampleRate.N(time.Second/30))
+
+	if err != nil {
+		log.Println("Decoder failed:", err)
+		return
+	}
 
 	// Create audio pannel
 	log.Println("Build loop streamer")
 	loopStreamer, err := beep.Loop2(audioStreamer)
 	if err != nil {
-		log.Println(err)
+		log.Println("loop2 err:", err)
 		return
 	}
 

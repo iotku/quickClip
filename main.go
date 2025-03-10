@@ -15,6 +15,7 @@ import (
 	"gioui.org/widget"
 	"gioui.org/widget/material"
 	"gioui.org/x/explorer"
+	"github.com/gopxl/beep/v2/speaker"
 )
 
 type C = layout.Context
@@ -46,6 +47,8 @@ func main() {
 	// This is important to allow the interface to show up before being blocked on WASM clients
 	// so they can interact with the page and unblock the audio context
 	<-uiReadyChan
+
+	speaker.Init(44100, 8194)
 	app.Main()
 
 }
