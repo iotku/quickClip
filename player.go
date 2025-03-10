@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/gopxl/beep/v2/speaker"
 	"log"
 
 	"gioui.org/app"
@@ -9,7 +10,10 @@ import (
 func play(w *app.Window) {
 	// Ensure the audio context is resumed immediately on a user gesture.
 	if currentState == Suspended {
+		speaker.Lock()
+		currentCtrl.Paused = false
 		currentState = Playing
+		speaker.Unlock()
 	} else {
 		go playAudio(w)
 	}
@@ -17,6 +21,9 @@ func play(w *app.Window) {
 
 func stop() {
 	if currentState != NotInitialized && currentState != Finished {
+		speaker.Lock()
+		currentCtrl.Paused = true
+		speaker.Unlock()
 		currentState = Suspended
 	}
 }
@@ -24,6 +31,7 @@ func stop() {
 func eject() {
 	// Stop playback if it's ongoing
 	if currentState == Playing || currentState == Suspended {
+		log.Println("Currently playing or suspended, EJECTING")
 		stop()
 	}
 

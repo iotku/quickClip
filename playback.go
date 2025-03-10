@@ -17,6 +17,7 @@ import (
 )
 
 var currentReader io.ReadCloser
+var currentCtrl *beep.Ctrl
 
 const bufferSize = 44100 * 2 * 2 // 1 second of STEREO audio at 44.1kHz
 var audioRingBuffer = make([]byte, bufferSize)
@@ -149,6 +150,7 @@ func playAudio(w *app.Window) {
 	}
 
 	ctrl := &beep.Ctrl{Streamer: loopStreamer}
+	currentCtrl = ctrl
 	// Resample to hardcoded 44100
 	resampler := beep.Resample(4, format.SampleRate, 44100, ctrl) // TODO: remove magic number
 	volume := &effects.Volume{Streamer: resampler, Base: 0}
