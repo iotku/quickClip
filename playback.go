@@ -1,12 +1,15 @@
 package main
 
 import (
+	"io"
+	"log"
+	"os"
+	"path/filepath"
+	"time"
+
 	"gioui.org/app"
 	"github.com/ebitengine/oto/v3"
 	"github.com/hajimehoshi/go-mp3"
-	"io"
-	"log"
-	"time"
 )
 
 var currentReader io.Reader
@@ -70,7 +73,24 @@ func playAudio(w *app.Window) {
 	}
 
 	reader := currentReader
-	// Decode the MP3 file.
+	var fileExt string
+	if file, ok := reader.(*os.File); ok {
+		fileExt = filepath.Ext(file.Name())
+		log.Println("Found", fileExt, "extension.")
+	} else {
+		log.Println("No valid file extension found.")
+		return
+	}
+
+	switch fileExt {
+	case ".mp3":
+		log.Println("Using mp3 decoder")
+	case ".wav":
+		log.Println("Using wav decoder")
+	default:
+		log.Println("No decoder available for", fileExt)
+	}
+
 	decodedMp3, err := mp3.NewDecoder(reader)
 	if err != nil {
 		log.Println("mp3.NewDecoder failed:", err)

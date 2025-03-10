@@ -1,14 +1,15 @@
 package main
 
 import (
+	"image/color"
+	"log"
+
 	"gioui.org/app"
 	"gioui.org/layout"
 	"gioui.org/op/paint"
 	"gioui.org/unit"
 	"gioui.org/widget/material"
 	"gioui.org/x/explorer"
-	"image/color"
-	"log"
 )
 
 var fileDialog *explorer.Explorer // Initialized in Main
@@ -20,7 +21,7 @@ func openFileDialog(w *app.Window) {
 
 	// Open file dialog for a single MP3 file
 	// TODO: Support other file formats once we have more codec support
-	reader, err := fileDialog.ChooseFile(".mp3")
+	reader, err := fileDialog.ChooseFile(".wav", ".mp3")
 	if err != nil {
 		log.Println("Error selecting file:", err)
 		return
