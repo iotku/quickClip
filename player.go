@@ -1,20 +1,13 @@
 package main
 
 import (
-	"gioui.org/app"
 	"log"
+
+	"gioui.org/app"
 )
 
 func play(w *app.Window) {
 	// Ensure the audio context is resumed immediately on a user gesture.
-	if globalOtoCtx != nil {
-		err := globalOtoCtx.Resume()
-		if err != nil {
-			log.Println("Error resuming gio context:", err)
-			return
-		}
-	}
-
 	if currentState == Suspended {
 		currentState = Playing
 	} else {
@@ -24,11 +17,6 @@ func play(w *app.Window) {
 
 func stop() {
 	if currentState != NotInitialized && currentState != Finished {
-		err := globalOtoCtx.Suspend()
-		if err != nil {
-			log.Println("Error suspending gio context:", err)
-			return
-		}
 		currentState = Suspended
 	}
 }
@@ -37,15 +25,6 @@ func eject() {
 	// Stop playback if it's ongoing
 	if currentState == Playing || currentState == Suspended {
 		stop()
-	}
-
-	// Ensure that we close the player and release resources
-	if currentPlayer != nil {
-		err := currentPlayer.Close()
-		if err != nil {
-			log.Println("Error closing the player:", err)
-		}
-		currentPlayer = nil // Reset the player
 	}
 
 	// Optionally: Reset any other relevant state

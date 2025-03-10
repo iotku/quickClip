@@ -3,6 +3,9 @@
 package main
 
 import (
+	"log"
+	"os"
+
 	"gioui.org/app"
 	"gioui.org/font/gofont"
 	"gioui.org/layout"
@@ -12,8 +15,6 @@ import (
 	"gioui.org/widget"
 	"gioui.org/widget/material"
 	"gioui.org/x/explorer"
-	"log"
-	"os"
 )
 
 type C = layout.Context
@@ -41,11 +42,10 @@ func main() {
 		os.Exit(0)
 	}()
 
-	// Wait for the UI to be ready before initializing Oto
+	// Wait for the UI to be ready before initializing the audio
 	// This is important to allow the interface to show up before being blocked on WASM clients
 	// so they can interact with the page and unblock the audio context
 	<-uiReadyChan
-	initializeOtoCtx()
 	app.Main()
 
 }
@@ -73,10 +73,10 @@ func loop(w *app.Window) error {
 				stop()
 			}
 			if volumeSlider.Update(gtx) {
-				if currentPlayer != nil {
-					currentPlayer.SetVolume(float64(volumeSlider.Value))
-				}
-				playbackVolume = float64(volumeSlider.Value)
+				//if currentPlayer != nil {
+				//	currentPlayer.SetVolume(float64(volumeSlider.Value))
+				//}
+				//playbackVolume = float64(volumeSlider.Value)
 			}
 			render(gtx, th, evt)
 		}
