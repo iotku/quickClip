@@ -78,14 +78,14 @@ func render(gtx layout.Context, th *material.Theme, e app.FrameEvent) {
 				layout.Rigid(func(gtx C) D {
 					return material.Button(th, &openButton, "Open").Layout(gtx)
 				}),
-				//layout.Rigid(layout.Spacer{Height: spacing}.Layout),
-				//layout.Rigid(func(gtx C) D {
-				//	return material.Button(th, &backButton, "Back").Layout(gtx)
-				//}),
-				//layout.Rigid(layout.Spacer{Height: spacing}.Layout),
-				//layout.Rigid(func(gtx C) D {
-				//	return material.Button(th, &fwdButton, "Forward").Layout(gtx)
-				//}),
+				layout.Rigid(layout.Spacer{Height: spacing}.Layout),
+				layout.Rigid(func(gtx C) D {
+					return material.Button(th, &backButton, "Back").Layout(gtx)
+				}),
+				layout.Rigid(layout.Spacer{Height: spacing}.Layout),
+				layout.Rigid(func(gtx C) D {
+					return material.Button(th, &fwdButton, "Forward").Layout(gtx)
+				}),
 				layout.Rigid(layout.Spacer{Height: spacing}.Layout),
 				layout.Rigid(func(gtx C) D {
 					if currentState == Playing {
