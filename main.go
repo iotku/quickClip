@@ -49,7 +49,7 @@ func main() {
 	<-uiReadyChan
 	err := speaker.Init(44100, 8194) // NOTE: fixed buffer size for wasm
 	if err != nil {
-		log.Println("Speaker INIT failed!:", err)
+		log.Fatalf("Speaker INIT failed!:", err)
 		return
 	}
 	app.Main()

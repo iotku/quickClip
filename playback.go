@@ -4,20 +4,18 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"io"
-	"log"
-	//"os"
-	//"path/filepath"
 	"gioui.org/app"
 	"github.com/gopxl/beep/v2"
 	"github.com/gopxl/beep/v2/effects"
 	"github.com/gopxl/beep/v2/mp3"
 	"github.com/gopxl/beep/v2/speaker"
 	"github.com/gopxl/beep/v2/wav"
+	"io"
+	"log"
 )
 
 var currentReader io.ReadCloser
-var currentCtrl *beep.Ctrl
+var currentUnit *playbackUnit
 
 const bufferSize = 44100 * 2 * 2 // 1 second of STEREO audio at 44.1kHz
 var audioRingBuffer = make([]byte, bufferSize)
@@ -101,6 +99,71 @@ func makeSeekable(r io.ReadCloser) (io.ReadSeeker, error) {
 	return bytes.NewReader(buf), nil
 }
 
+type playbackUnit struct {
+	format    beep.Format
+	streamer  beep.StreamSeeker
+	ctrl      *beep.Ctrl
+	resampler *beep.Resampler
+	volume    *effects.Volume
+	AudioType string // e.g. .mp3 or .wav
+}
+
+func (p *playbackUnit) togglePause() {
+	if p.ctrl != nil {
+		speaker.Lock()
+		log.Println("toggled pause")
+		p.ctrl.Paused = !p.ctrl.Paused
+		speaker.Unlock()
+	} else {
+		log.Println("p.ctrl was nil!")
+	}
+}
+
+func newPlaybackUnit(reader io.ReadCloser) (*playbackUnit, error) {
+	var err error
+	unit := &playbackUnit{}
+
+	// Convert the currentReader to a seekable stream (read whole file into memory)
+	seekableReader, err := makeSeekable(currentReader)
+	if err != nil {
+		log.Println("Failed to make reader seekable:", err)
+		return nil, err
+	}
+
+	// Wrap seekableReader in a closer to satisfy mp3 decoder
+	rc := &seekableReadCloser{seekableReader}
+
+	audioType, _ := detectMagicBytes(seekableReader)
+	switch audioType {
+	case ".mp3":
+		log.Println("Using mp3 decoder")
+		unit.streamer, unit.format, err = mp3.Decode(rc)
+	case ".wav":
+		log.Println("Using wav decoder")
+		unit.streamer, unit.format, err = wav.Decode(rc)
+	default:
+		return nil, fmt.Errorf("no decoder available for %v", audioType)
+	}
+	log.Println("Audio format", unit.format)
+
+	if err != nil {
+		return nil, fmt.Errorf("decoder failed for %v: %v", audioType, err)
+	}
+
+	log.Println("Build loop streamer")
+	loopStreamer, err := beep.Loop2(unit.streamer, beep.LoopTimes(1))
+	if err != nil {
+		log.Println("loop2 err:", err)
+		return nil, err
+	}
+
+	unit.ctrl = &beep.Ctrl{Streamer: loopStreamer}
+	// Resample to hardcoded 44100
+	resampler := beep.Resample(4, unit.format.SampleRate, 44100, unit.ctrl) // TODO: remove magic number
+	unit.volume = &effects.Volume{Streamer: resampler, Base: 0}
+	return unit, nil
+}
+
 // playAudio now uses a TeeReader to split the stream.
 func playAudio(w *app.Window) {
 	if currentReader == nil {
@@ -110,55 +173,15 @@ func playAudio(w *app.Window) {
 		return
 	}
 
-	// Convert the currentReader to a seekable stream.
-	seekableReader, err := makeSeekable(currentReader)
+	playbackUnit, err := newPlaybackUnit(currentReader)
 	if err != nil {
-		log.Println("Failed to make reader seekable:", err)
-		return
+		log.Println("Couldn't create playback unit:", err)
 	}
-
-	// Wrap seekableReader in a closer to satisfy mp3 decoder
-	rc := &seekableReadCloser{seekableReader}
-
-	var audioStreamer beep.StreamSeekCloser
-	var format beep.Format
-	audioType, _ := detectMagicBytes(seekableReader)
-	switch audioType {
-	case ".mp3":
-		log.Println("Using mp3 decoder")
-		audioStreamer, format, err = mp3.Decode(rc)
-	case ".wav":
-		log.Println("Using wav decoder")
-		audioStreamer, format, err = wav.Decode(rc)
-	default:
-		log.Println("No decoder available for", audioType)
-		return
-	}
-	log.Println(format)
-
-	if err != nil {
-		log.Println("Decoder failed:", err)
-		return
-	}
-
-	// Create audio pannel
-	log.Println("Build loop streamer")
-	loopStreamer, err := beep.Loop2(audioStreamer)
-	if err != nil {
-		log.Println("loop2 err:", err)
-		return
-	}
-
-	ctrl := &beep.Ctrl{Streamer: loopStreamer}
-	currentCtrl = ctrl
-	// Resample to hardcoded 44100
-	resampler := beep.Resample(4, format.SampleRate, 44100, ctrl) // TODO: remove magic number
-	volume := &effects.Volume{Streamer: resampler, Base: 0}
-
 	log.Println("Play NOW")
 	done := make(chan bool)
+	currentUnit = playbackUnit
 	currentState = Playing
-	speaker.Play(beep.Seq(volume, beep.Callback(func() {
+	speaker.Play(beep.Seq(playbackUnit.volume, beep.Callback(func() {
 		done <- true
 		log.Println("Audio DONE")
 		currentState = Finished
