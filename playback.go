@@ -193,6 +193,10 @@ func playAudio(w *app.Window) {
 	log.Println("Play NOW")
 	done := make(chan bool)
 	currentUnit = playbackUnit
+	if playbackUnit == nil || playbackUnit.volume == nil {
+		log.Println("Playback unit streamer not available")
+		return
+	}
 	currentState = Playing
 	speaker.Play(beep.Seq(playbackUnit.volume, beep.Callback(func() {
 		done <- true
