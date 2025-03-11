@@ -20,7 +20,7 @@ func renderWaveform(gtx layout.Context, width, height int) layout.Dimensions {
 		return layout.Dimensions{}
 	}
 
-	reduce := 4
+	reduce := 1
 	numSamples := width / reduce // 1/4 sample per pixel TODO: Expose as performance setting
 	numBytes := numSamples * 2
 	if len(audioRingBuffer) < numBytes {

@@ -210,7 +210,8 @@ func newPlaybackUnit(reader io.ReadCloser) (*playbackUnit, error) {
 	unit.ctrl = &beep.Ctrl{Streamer: loopStreamer}
 	// Resample to hardcoded 44100
 	resampler := beep.Resample(4, unit.format.SampleRate, 44100, unit.ctrl) // TODO: remove magic number
-	unit.volume = &effects.Volume{Streamer: resampler}
+	tap := &TapStreamer{s: resampler}
+	unit.volume = &effects.Volume{Streamer: tap}
 	unit.setVolume(float32(playbackVolume)) // set default volume
 	return unit, nil
 }
@@ -236,10 +237,23 @@ func playAudio(w *app.Window) {
 		return
 	}
 	currentState = Playing
+
 	speaker.Play(beep.Seq(playbackUnit.volume, beep.Callback(func() {
 		done <- true
 	})))
-	<-done // wait for playback to be done
-	log.Println("Audio DONE")
-	currentState = Finished
+
+	ticker := time.NewTicker(time.Millisecond * 16) // ~60 FPS
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C: // Force redraw at ticker interval
+			w.Invalidate()
+
+		case <-done:
+			log.Println("Audio DONE")
+			currentState = Finished
+			break
+		}
+	}
 }
