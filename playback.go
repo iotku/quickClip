@@ -72,16 +72,6 @@ func determineFileType(header []byte) string {
 	}
 }
 
-// readCloserWrapper combines an io.Reader with an io.Closer.
-type readCloserWrapper struct {
-	io.Reader
-	c io.Closer
-}
-
-func (rcw *readCloserWrapper) Close() error {
-	return rcw.c.Close()
-}
-
 type seekableReadCloser struct {
 	io.ReadSeeker
 }
@@ -108,14 +98,34 @@ type playbackUnit struct {
 	AudioType string // e.g. .mp3 or .wav
 }
 
-func (p *playbackUnit) togglePause() {
+func (p *playbackUnit) setPaused(state bool) {
 	if p.ctrl != nil {
 		speaker.Lock()
 		log.Println("toggled pause")
-		p.ctrl.Paused = !p.ctrl.Paused
+		p.ctrl.Paused = state
 		speaker.Unlock()
-	} else {
-		log.Println("p.ctrl was nil!")
+	}
+}
+
+func (p *playbackUnit) setVolume(level float32) {
+	if p.volume != nil {
+		if level == 0.0 {
+			p.volume.Silent = true
+		} else {
+			p.volume.Silent = false
+		}
+
+		percentage := level * 100
+		if percentage < 0 {
+			percentage = 0
+		} else if percentage > 100 {
+			percentage = 100
+		}
+
+		dB := 60 * (percentage/100 - 1)
+		p.volume.Base = 2
+		p.volume.Volume = float64(dB / 10)
+		log.Println(p.volume.Volume)
 	}
 }
 
@@ -154,7 +164,7 @@ func newPlaybackUnit(reader io.ReadCloser) (*playbackUnit, error) {
 	}
 
 	log.Println("Build loop streamer")
-	loopStreamer, err := beep.Loop2(unit.streamer, beep.LoopTimes(1))
+	loopStreamer, err := beep.Loop2(unit.streamer, beep.LoopTimes(0))
 	if err != nil {
 		log.Println("loop2 err:", err)
 		return nil, err
@@ -186,7 +196,8 @@ func playAudio(w *app.Window) {
 	currentState = Playing
 	speaker.Play(beep.Seq(playbackUnit.volume, beep.Callback(func() {
 		done <- true
-		log.Println("Audio DONE")
-		currentState = Finished
 	})))
+	<-done // wait for playback to be done
+	log.Println("Audio DONE")
+	currentState = Finished
 }

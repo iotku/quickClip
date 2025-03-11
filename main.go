@@ -79,10 +79,7 @@ func loop(w *app.Window) error {
 				stop()
 			}
 			if volumeSlider.Update(gtx) {
-				//if currentPlayer != nil {
-				//	currentPlayer.SetVolume(float64(volumeSlider.Value))
-				//}
-				//playbackVolume = float64(volumeSlider.Value)
+				currentUnit.setVolume(volumeSlider.Value)
 			}
 			render(gtx, th, evt)
 		}

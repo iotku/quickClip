@@ -9,7 +9,7 @@ import (
 func play(w *app.Window) {
 	// Ensure the audio context is resumed immediately on a user gesture.
 	if currentState == Suspended {
-		currentUnit.togglePause()
+		currentUnit.setPaused(false)
 		currentState = Playing
 	} else {
 		go playAudio(w)
@@ -18,7 +18,7 @@ func play(w *app.Window) {
 
 func stop() {
 	if currentState != NotInitialized && currentState != Finished {
-		currentUnit.togglePause()
+		currentUnit.setPaused(true)
 		currentState = Suspended
 	}
 }
@@ -30,6 +30,9 @@ func eject() {
 		stop()
 	}
 
+	// TODO: Does the old playback unit actually get garbage collected?
+	//       I suspect it just remains paused in memory...
+	
 	// Reset any other relevant state
 	currentState = NotInitialized
 	playbackTime = 0
