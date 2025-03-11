@@ -19,7 +19,7 @@ func openFileDialog(w *app.Window) {
 		return
 	}
 
-	// Open file dialog for a single MP3 file
+	// Open file dialog for a single audio file
 	// TODO: Support other file formats once we have more codec support
 	reader, err := fileDialog.ChooseFile(".wav", ".mp3")
 	if err != nil {

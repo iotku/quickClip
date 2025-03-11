@@ -107,12 +107,12 @@ func (p *playbackUnit) setPaused(state bool) {
 	}
 }
 
+// Set volume level of the playbackUnit from 0.0 (0%) to 1.0 (100%)
 func (p *playbackUnit) setVolume(level float32) {
 	if p.volume != nil {
 		if level == 0.0 {
 			p.volume.Silent = true
-		} else {
-			p.volume.Silent = false
+			return
 		}
 
 		percentage := level * 100
@@ -125,7 +125,7 @@ func (p *playbackUnit) setVolume(level float32) {
 		dB := 60 * (percentage/100 - 1)
 		p.volume.Base = 2
 		p.volume.Volume = float64(dB / 10)
-		log.Println(p.volume.Volume)
+		p.volume.Silent = false
 	}
 }
 

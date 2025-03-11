@@ -36,6 +36,7 @@ func main() {
 
 		// Notify that the UI is ready
 		close(uiReadyChan)
+
 		// Start Render loop
 		if err := loop(w); err != nil {
 			log.Fatal(err)
@@ -43,13 +44,14 @@ func main() {
 		os.Exit(0)
 	}()
 
-	// Wait for the UI to be ready before initializing the audio
-	// This is important to allow the interface to show up before being blocked on WASM clients
-	// so they can interact with the page and unblock the audio context
+	// Wait for UI to be ready before initializing the audio ctx so they can interact first with the UI
+	// This is critical to allow the interface to show up before being blocked on WASM clients
 	<-uiReadyChan
-	err := speaker.Init(44100, 8194) // NOTE: fixed buffer size for wasm
+
+	// NOTE: fixed buffer size for wasm MUST be divisible by 2
+	err := speaker.Init(44100, 8194)
 	if err != nil {
-		log.Fatalf("Speaker INIT failed!:", err)
+		log.Fatalln("Speaker INIT failed!:", err)
 		return
 	}
 	app.Main()
