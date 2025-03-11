@@ -62,7 +62,7 @@ func main() {
 func loop(w *app.Window) error {
 	th := material.NewTheme()
 	th.Shaper = text.NewShaper(text.WithCollection(gofont.Collection()))
-	volumeSlider.Value = float32(playbackVolume)
+	volumeSlider.Value = float32(playbackVolume) // INITIAL VOLUME
 	var ops op.Ops
 	for {
 		e := w.Event()

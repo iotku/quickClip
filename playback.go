@@ -98,13 +98,13 @@ type playbackUnit struct {
 	ctrl      *beep.Ctrl
 	resampler *beep.Resampler
 	volume    *effects.Volume
-	AudioType string // e.g. .mp3 or .wav
+	AudioType string // e.g. ".wav", ".flac", or ".mp3"
 }
 
 func (p *playbackUnit) setPaused(state bool) {
 	if p.ctrl != nil {
 		speaker.Lock()
-		log.Println("toggled pause")
+		log.Println("Setting paused to:", state)
 		p.ctrl.Paused = state
 		speaker.Unlock()
 	}
@@ -113,6 +113,7 @@ func (p *playbackUnit) setPaused(state bool) {
 // Set volume level of the playbackUnit from 0.0 (0%) to 1.0 (100%)
 func (p *playbackUnit) setVolume(level float32) {
 	if p.volume != nil {
+		playbackVolume = float64(level)
 		if level == 0.0 {
 			p.volume.Silent = true
 			return
@@ -169,7 +170,6 @@ func newPlaybackUnit(reader io.ReadCloser) (*playbackUnit, error) {
 		return nil, fmt.Errorf("decoder failed for %v: %v", audioType, err)
 	}
 
-	log.Println("Build loop streamer")
 	loopStreamer, err := beep.Loop2(unit.streamer, beep.LoopTimes(0))
 	if err != nil {
 		log.Println("loop2 err:", err)
@@ -179,7 +179,8 @@ func newPlaybackUnit(reader io.ReadCloser) (*playbackUnit, error) {
 	unit.ctrl = &beep.Ctrl{Streamer: loopStreamer}
 	// Resample to hardcoded 44100
 	resampler := beep.Resample(4, unit.format.SampleRate, 44100, unit.ctrl) // TODO: remove magic number
-	unit.volume = &effects.Volume{Streamer: resampler, Base: 0}
+	unit.volume = &effects.Volume{Streamer: resampler}
+	unit.setVolume(float32(playbackVolume)) // set default volume
 	return unit, nil
 }
 
