@@ -32,7 +32,7 @@ func eject() {
 
 	// TODO: Does the old playback unit actually get garbage collected?
 	//       I suspect it just remains paused in memory...
-	
+
 	// Reset any other relevant state
 	currentState = NotInitialized
 	playbackTime = 0
@@ -40,4 +40,16 @@ func eject() {
 
 	// Log out that the file has been ejected
 	log.Println("Ejected current file and reset state.")
+}
+
+func forward() {
+	if currentUnit.forward() != nil {
+		return
+	}
+}
+
+func back() {
+	if currentUnit.back() != nil {
+		return
+	}
 }

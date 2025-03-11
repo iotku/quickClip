@@ -80,6 +80,12 @@ func loop(w *app.Window) error {
 			if stopButton.Clicked(gtx) {
 				stop()
 			}
+			if fwdButton.Clicked(gtx) {
+				forward()
+			}
+			if backButton.Clicked(gtx) {
+				back()
+			}
 			if volumeSlider.Update(gtx) {
 				currentUnit.setVolume(volumeSlider.Value)
 			}

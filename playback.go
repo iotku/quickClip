@@ -13,6 +13,7 @@ import (
 	"github.com/gopxl/beep/v2/wav"
 	"io"
 	"log"
+	"time"
 )
 
 var currentReader io.ReadCloser
@@ -99,6 +100,36 @@ type playbackUnit struct {
 	resampler *beep.Resampler
 	volume    *effects.Volume
 	AudioType string // e.g. ".wav", ".flac", or ".mp3"
+}
+
+func (p *playbackUnit) forward() (err error) {
+	speaker.Lock()
+	newPos := p.streamer.Position()
+	newPos += p.format.SampleRate.N(time.Second)
+	// Clamp the position to be within the stream
+	newPos = max(newPos, 0)
+	newPos = min(newPos, p.streamer.Len()-1)
+
+	if err = p.streamer.Seek(newPos); err != nil {
+		log.Println(err)
+	}
+	speaker.Unlock()
+	return err
+}
+
+func (p *playbackUnit) back() (err error) {
+	speaker.Lock()
+	newPos := p.streamer.Position()
+	newPos -= p.format.SampleRate.N(time.Second)
+	// Clamp the position to be within the stream
+	newPos = max(newPos, 0)
+	newPos = min(newPos, p.streamer.Len()-1)
+
+	if err = p.streamer.Seek(newPos); err != nil {
+		log.Println(err)
+	}
+	speaker.Unlock()
+	return err
 }
 
 func (p *playbackUnit) setPaused(state bool) {
