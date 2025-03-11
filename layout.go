@@ -26,12 +26,9 @@ func openFileDialog(w *app.Window) {
 		return
 	}
 
-	lastState := currentState
 	eject()
 	currentReader = reader
-	if lastState == Playing {
-		play(w) // keep playing with new reader
-	}
+	play(w) // keep playing with new reader
 }
 
 func render(gtx layout.Context, th *material.Theme, e app.FrameEvent) {
