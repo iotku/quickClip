@@ -124,7 +124,7 @@ func newPlaybackUnit(reader io.ReadCloser) (*playbackUnit, error) {
 	unit := &playbackUnit{}
 
 	// Convert the currentReader to a seekable stream (read whole file into memory)
-	seekableReader, err := makeSeekable(currentReader)
+	seekableReader, err := makeSeekable(reader)
 	if err != nil {
 		log.Println("Failed to make reader seekable:", err)
 		return nil, err
