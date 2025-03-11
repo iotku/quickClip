@@ -35,7 +35,6 @@ func eject() {
 
 	// Reset any other relevant state
 	currentState = NotInitialized
-	playbackTime = 0
 	resetVisualization() // Reset any ongoing visualization updates
 
 	// Log out that the file has been ejected

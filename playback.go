@@ -22,7 +22,6 @@ var currentUnit *playbackUnit
 const bufferSize = 44100 * 2 * 2 // 1 second of STEREO audio at 44.1kHz
 var audioRingBuffer = make([]byte, bufferSize)
 var ringWritePos = 0
-var playbackTime = 0.0
 var playbackVolume = 0.7 // initial playbackVolume 70%
 
 // PlaybackState contains the various possible states of our playback

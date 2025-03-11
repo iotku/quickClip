@@ -127,9 +127,6 @@ func renderWaveform(gtx layout.Context, width, height int) layout.Dimensions {
 }
 
 func updateVisualization(data []byte) {
-	frameDuration := float64(len(data)) / float64(bufferSize) // 16-bit stereo
-	playbackTime += frameDuration
-
 	// Ensure we wrap around correctly
 	copy(audioRingBuffer[ringWritePos:], data)
 
@@ -148,9 +145,6 @@ func resetVisualization() {
 
 	// Reset the ring write position to the beginning
 	ringWritePos = 0
-
-	// Reset playback time to 0 to start fresh
-	playbackTime = 0
 
 	// Clear out any previously smoothed sample data
 	smoothedSamples = nil
