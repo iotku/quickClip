@@ -28,21 +28,6 @@ func (t *TapStreamer) Stream(samples [][2]float64) (n int, ok bool) {
 		buf[i*4+2] = byte(right)
 		buf[i*4+3] = byte(right >> 8)
 	}
-	// Optionally, check if the buffer is silent (all zeros)
-	if isSilence(buf) {
-		return n, ok
-	}
-	// Only update visualization with valid, non-silent data.
 	updateVisualization(buf)
 	return n, ok
-}
-
-// Helper function to check if the buffer is silent.
-func isSilence(data []byte) bool {
-	for _, b := range data {
-		if b != 0 {
-			return false
-		}
-	}
-	return true
 }

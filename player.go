@@ -28,6 +28,7 @@ func eject() {
 	if currentState == Playing || currentState == Suspended {
 		log.Println("Currently playing or suspended, EJECTING")
 		stop()
+		currentUnit.done <- true
 	}
 
 	// TODO: Does the old playback unit actually get garbage collected?

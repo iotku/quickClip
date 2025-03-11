@@ -98,6 +98,7 @@ type playbackUnit struct {
 	ctrl      *beep.Ctrl
 	resampler *beep.Resampler
 	volume    *effects.Volume
+	done      chan bool
 	AudioType string // e.g. ".wav", ".flac", or ".mp3"
 }
 
@@ -165,7 +166,7 @@ func (p *playbackUnit) setVolume(level float32) {
 
 func newPlaybackUnit(reader io.ReadCloser) (*playbackUnit, error) {
 	var err error
-	unit := &playbackUnit{}
+	unit := &playbackUnit{done: make(chan bool)}
 
 	// Convert the currentReader to a seekable stream (read whole file into memory)
 	seekableReader, err := makeSeekable(reader)
@@ -224,12 +225,14 @@ func playAudio(w *app.Window) {
 		return
 	}
 
+	if currentUnit != nil {
+		speaker.Clear()
+	}
 	playbackUnit, err := newPlaybackUnit(currentReader)
 	if err != nil {
 		log.Println("Couldn't create playback unit:", err)
 	}
 	log.Println("Play NOW")
-	done := make(chan bool)
 	currentUnit = playbackUnit
 	if playbackUnit == nil || playbackUnit.volume == nil {
 		log.Println("Playback unit streamer not available")
@@ -238,7 +241,7 @@ func playAudio(w *app.Window) {
 	currentState = Playing
 
 	speaker.Play(beep.Seq(playbackUnit.volume, beep.Callback(func() {
-		done <- true
+		playbackUnit.done <- true
 	})))
 
 	ticker := time.NewTicker(time.Millisecond * 16) // ~60 FPS
@@ -249,10 +252,11 @@ func playAudio(w *app.Window) {
 		case <-ticker.C: // Force redraw at ticker interval
 			w.Invalidate()
 
-		case <-done:
+		case <-playbackUnit.done:
 			log.Println("Audio DONE")
+			resetVisualization()
 			currentState = Finished
-			break
+			return
 		}
 	}
 }
