@@ -7,6 +7,7 @@ import (
 	"gioui.org/app"
 	"github.com/gopxl/beep/v2"
 	"github.com/gopxl/beep/v2/effects"
+	"github.com/gopxl/beep/v2/flac"
 	"github.com/gopxl/beep/v2/mp3"
 	"github.com/gopxl/beep/v2/speaker"
 	"github.com/gopxl/beep/v2/wav"
@@ -66,6 +67,8 @@ func determineFileType(header []byte) string {
 		return ".mp3"
 	case len(header) >= 2 && header[0] == 0xFF && (header[1]&0xF6) == 0xF2:
 		return ".mp3"
+	case len(header) >= 4 && string(header[:4]) == "fLaC":
+		return ".flac"
 	default:
 		log.Println("Could not determine audio type by magic bytes")
 		return ""
@@ -154,6 +157,9 @@ func newPlaybackUnit(reader io.ReadCloser) (*playbackUnit, error) {
 	case ".wav":
 		log.Println("Using wav decoder")
 		unit.streamer, unit.format, err = wav.Decode(rc)
+	case ".flac":
+		log.Println("Using flac decoder")
+		unit.streamer, unit.format, err = flac.Decode(rc)
 	default:
 		return nil, fmt.Errorf("no decoder available for %v", audioType)
 	}
