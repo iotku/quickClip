@@ -133,7 +133,10 @@ func newPlaybackUnit(reader io.ReadCloser) (*playbackUnit, error) {
 	// Wrap seekableReader in a closer to satisfy mp3 decoder
 	rc := &seekableReadCloser{seekableReader}
 
-	audioType, _ := detectMagicBytes(seekableReader)
+	audioType, err := detectMagicBytes(seekableReader)
+	if err != nil {
+		return nil, err
+	}
 	switch audioType {
 	case ".mp3":
 		log.Println("Using mp3 decoder")
@@ -164,7 +167,7 @@ func newPlaybackUnit(reader io.ReadCloser) (*playbackUnit, error) {
 	return unit, nil
 }
 
-// playAudio now uses a TeeReader to split the stream.
+// playAudio plays the current (last) reader provided by the file explorer
 func playAudio(w *app.Window) {
 	if currentReader == nil {
 		log.Println("playAudio: No audio reader")
