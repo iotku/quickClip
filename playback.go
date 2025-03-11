@@ -103,6 +103,9 @@ type playbackUnit struct {
 }
 
 func (p *playbackUnit) forward() (err error) {
+	if p == nil {
+		return
+	}
 	speaker.Lock()
 	newPos := p.streamer.Position()
 	newPos += p.format.SampleRate.N(time.Second)
@@ -118,6 +121,9 @@ func (p *playbackUnit) forward() (err error) {
 }
 
 func (p *playbackUnit) back() (err error) {
+	if p == nil {
+		return
+	}
 	speaker.Lock()
 	newPos := p.streamer.Position()
 	newPos -= p.format.SampleRate.N(time.Second)
@@ -133,35 +139,39 @@ func (p *playbackUnit) back() (err error) {
 }
 
 func (p *playbackUnit) setPaused(state bool) {
-	if p.ctrl != nil {
-		speaker.Lock()
-		log.Println("Setting paused to:", state)
-		p.ctrl.Paused = state
-		speaker.Unlock()
+	if p == nil {
+		return
 	}
+
+	speaker.Lock()
+	log.Println("Setting paused to:", state)
+	p.ctrl.Paused = state
+	speaker.Unlock()
+
 }
 
 // Set volume level of the playbackUnit from 0.0 (0%) to 1.0 (100%)
 func (p *playbackUnit) setVolume(level float32) {
-	if p.volume != nil {
-		playbackVolume = float64(level)
-		if level == 0.0 {
-			p.volume.Silent = true
-			return
-		}
-
-		percentage := level * 100
-		if percentage < 0 {
-			percentage = 0
-		} else if percentage > 100 {
-			percentage = 100
-		}
-
-		dB := 60 * (percentage/100 - 1)
-		p.volume.Base = 2
-		p.volume.Volume = float64(dB / 10)
-		p.volume.Silent = false
+	if p == nil {
+		return
 	}
+	playbackVolume = float64(level)
+	if level == 0.0 {
+		p.volume.Silent = true
+		return
+	}
+
+	percentage := level * 100
+	if percentage < 0 {
+		percentage = 0
+	} else if percentage > 100 {
+		percentage = 100
+	}
+
+	dB := 60 * (percentage/100 - 1)
+	p.volume.Base = 2
+	p.volume.Volume = float64(dB / 10)
+	p.volume.Silent = false
 }
 
 func newPlaybackUnit(reader io.ReadCloser) (*playbackUnit, error) {
