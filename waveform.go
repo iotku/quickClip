@@ -12,7 +12,6 @@ import (
 )
 
 var smoothedSamples []float32
-var delaySeconds = .80
 
 func renderWaveform(gtx layout.Context, width, height int) layout.Dimensions {
 	// Early exit if there isn't enough audio data.
@@ -27,12 +26,8 @@ func renderWaveform(gtx layout.Context, width, height int) layout.Dimensions {
 		return layout.Dimensions{}
 	}
 
-	sampleRate := 44100
-	offsetSamples := int(delaySeconds * float64(sampleRate))
-	offsetBytes := offsetSamples * 2
-
 	// Start a few samples earlier than the latest sample.
-	startIndex := (ringWritePos + bufferSize - numBytes - offsetBytes) % bufferSize
+	startIndex := (ringWritePos + bufferSize - numBytes) % bufferSize
 
 	// Handle potential wrap-around by splitting the read if necessary.
 	var samples []int16
@@ -89,7 +84,7 @@ func renderWaveform(gtx layout.Context, width, height int) layout.Dimensions {
 
 	// First, update smoothedSamples from the raw samples.
 	for i, s := range samples {
-		dbMin := -40.0 // Silence threshold
+		dbMin := -90.0 // Silence threshold
 		sampleFloat := float64(s) / float64(maxAmp)
 
 		// Convert to dB, ensuring no log(0) issues
