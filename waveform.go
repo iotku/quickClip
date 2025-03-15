@@ -140,9 +140,6 @@ func resetVisualization() {
 
 	// Reset the ring write position to the beginning
 	ringWritePos = 0
-
-	// Clear out any previously smoothed sample data
-	smoothedSamples = nil
 }
 
 // applyContrast applies a power function to increase contrast.
