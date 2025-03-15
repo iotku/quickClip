@@ -42,7 +42,7 @@ func renderWaveform(gtx layout.Context, width, height int) layout.Dimensions {
 	}
 
 	// Determine the maximum amplitude.
-	var maxAmp float32 = 1
+	var maxAmp float32 = 32767
 	for _, s := range samples {
 		amp := float32(s)
 		if amp < 0 {
