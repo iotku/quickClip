@@ -7,13 +7,12 @@ import (
 )
 
 func play(w *app.Window) {
-	// Ensure the audio context is resumed immediately on a user gesture.
-	if currentState == Suspended {
+	if currentState == Suspended { // Resume Paused playback
 		currentUnit.setPaused(false)
 		currentState = Playing
-	} else {
-		go playAudio(w)
+		return
 	}
+	go playAudio(w)
 }
 
 func stop() {
@@ -24,8 +23,7 @@ func stop() {
 }
 
 func eject() {
-	// Stop playback if it's ongoing
-	if currentState == Playing || currentState == Suspended {
+	if currentState == Playing || currentState == Suspended { // Stop ongoing playback
 		log.Println("Currently playing or suspended, EJECTING")
 		stop()
 		currentUnit.done <- true
@@ -38,7 +36,6 @@ func eject() {
 	currentState = NotInitialized
 	resetVisualization() // Reset any ongoing visualization updates
 
-	// Log out that the file has been ejected
 	log.Println("Ejected current file and reset state.")
 }
 
