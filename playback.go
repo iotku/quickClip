@@ -108,7 +108,7 @@ func (p *playbackUnit) forward() (err error) {
 	}
 	speaker.Lock()
 	newPos := p.streamer.Position()
-	newPos += p.format.SampleRate.N(time.Second)
+	newPos += p.format.SampleRate.N(time.Second * 5)
 	// Clamp the position to be within the stream
 	newPos = max(newPos, 0)
 	newPos = min(newPos, p.streamer.Len()-1)
@@ -126,7 +126,7 @@ func (p *playbackUnit) back() (err error) {
 	}
 	speaker.Lock()
 	newPos := p.streamer.Position()
-	newPos -= p.format.SampleRate.N(time.Second)
+	newPos -= p.format.SampleRate.N(2500 * time.Millisecond)
 	// Clamp the position to be within the stream
 	newPos = max(newPos, 0)
 	newPos = min(newPos, p.streamer.Len()-1)
