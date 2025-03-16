@@ -266,6 +266,7 @@ func playAudio(w *app.Window) {
 			log.Println("Audio DONE")
 			resetVisualization()
 			currentState = Finished
+			w.Invalidate()
 			return
 		}
 	}

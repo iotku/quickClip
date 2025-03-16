@@ -134,6 +134,11 @@ func resetVisualization() {
 
 	// Reset the ring write position to the beginning
 	ringWritePos = 0
+
+	// Set all smoothedSamples to 0, we don't use nil here to avoid nil dereference
+	for i := range smoothedSamples {
+		smoothedSamples[i] = 0
+	}
 }
 
 // applyContrast applies a power function to increase contrast.
