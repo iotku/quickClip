@@ -84,19 +84,13 @@ func renderWaveform(gtx layout.Context, width, height int) layout.Dimensions {
 
 	// First, update smoothedSamples from the raw samples.
 	for i, s := range samples {
-		dbMin := -90.0 // Silence threshold
+		dbMin := -120.0 // Silence threshold
 		sampleFloat := float64(s) / float64(maxAmp)
 
 		// Convert to dB, ensuring no log(0) issues
 		db := 20 * math.Log10(math.Max(1e-5, math.Abs(sampleFloat)))
 
-		// Normalize dB scale, ensuring silence stays at zero
 		normalized := float32((db - dbMin) / (-dbMin))
-
-		// Clamp values to avoid unwanted visual expansion
-		if db <= dbMin {
-			normalized = 0
-		}
 
 		contrasted := applyContrast32(normalized, exponent)
 		scaled := contrasted * maxHeight
