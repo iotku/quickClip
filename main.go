@@ -13,16 +13,12 @@ import (
 	"gioui.org/op"
 	"gioui.org/text"
 	"gioui.org/unit"
-	"gioui.org/widget"
 	"gioui.org/widget/material"
 	"gioui.org/x/explorer"
 )
 
 type C = layout.Context
 type D = layout.Dimensions
-
-var openButton, backButton, fwdButton, playButton, stopButton widget.Clickable
-var volumeSlider widget.Float // widget state for the slider
 
 // Channel to signal when the UI is ready
 var uiReadyChan = make(chan struct{})

@@ -174,6 +174,18 @@ func (p *playbackUnit) setVolume(level float32) {
 	p.volume.Silent = false
 }
 
+// return the percentage of playback progress as a float32 (e.g. for progressbar updates)
+func (p *playbackUnit) getProgressFloat() float32 {
+	if p == nil {
+		return 0.0
+	}
+	totalSamples := p.streamer.Len()
+	if totalSamples > 0 {
+		return float32(p.streamer.Position()) / float32(totalSamples)
+	}
+	return 0.0
+}
+
 func newPlaybackUnit(reader io.ReadCloser) (*playbackUnit, error) {
 	var err error
 	unit := &playbackUnit{done: make(chan bool)}
@@ -257,14 +269,23 @@ func playAudio(w *app.Window) {
 	ticker := time.NewTicker(time.Millisecond * 16) // ~60 FPS
 	defer ticker.Stop()
 
+	progressTicker := time.NewTicker(time.Second)
+	defer progressTicker.Stop()
+
 	for {
 		select {
-		case <-ticker.C: // Force redraw at ticker interval
+
+		// Update playback progressbar
+		case <-progressTicker.C:
+			updateProgressBar(playbackUnit)
+
+		case <-ticker.C: // Force redraw at ticker interval for smooth waveform
 			w.Invalidate()
 
 		case <-playbackUnit.done:
 			log.Println("Audio DONE")
 			resetVisualization()
+			resetProgressBar()
 			currentState = Finished
 			w.Invalidate()
 			return

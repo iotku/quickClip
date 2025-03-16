@@ -43,10 +43,12 @@ func forward() {
 	if currentUnit.forward() != nil {
 		return
 	}
+	updateProgressBar(currentUnit)
 }
 
 func back() {
 	if currentUnit.back() != nil {
 		return
 	}
+	updateProgressBar(currentUnit)
 }

@@ -1,18 +1,21 @@
 package main
 
 import (
-	"image/color"
-	"log"
-
 	"gioui.org/app"
 	"gioui.org/layout"
 	"gioui.org/op/paint"
 	"gioui.org/unit"
+	"gioui.org/widget"
 	"gioui.org/widget/material"
 	"gioui.org/x/explorer"
+	"image/color"
+	"log"
 )
 
 var fileDialog *explorer.Explorer // Initialized in Main
+var openButton, backButton, fwdButton, playButton, stopButton widget.Clickable
+var volumeSlider widget.Float // widget state for the slider
+var playbackProgress float32
 
 func openFileDialog(w *app.Window) {
 	if fileDialog == nil {
@@ -29,6 +32,14 @@ func openFileDialog(w *app.Window) {
 	eject()
 	currentReader = reader
 	play(w) // keep playing with new reader
+}
+
+func updateProgressBar(pUnit *playbackUnit) {
+	playbackProgress = pUnit.getProgressFloat()
+}
+
+func resetProgressBar() {
+	playbackProgress = 0
 }
 
 func render(gtx layout.Context, th *material.Theme, e app.FrameEvent) {
@@ -53,17 +64,14 @@ func render(gtx layout.Context, th *material.Theme, e app.FrameEvent) {
 					return renderWaveform(gtx, gtx.Constraints.Max.X, gtx.Constraints.Max.Y)
 				}),
 				// TODO: Track progress with progress bar bellow waveform
-				// Progress bar: fixed height.
-				//layout.Rigid(func(gtx C) D {
-				//	// Wrap in an inset for a bit of padding.
-				//	return layout.Inset{Top: unit.Dp(4), Bottom: unit.Dp(4)}.Layout(gtx, func(gtx C) D {
-				//		const progressBarHeight = 10
-				//		gtx.Constraints.Min.Y = gtx.Dp(progressBarHeight)
-				//		gtx.Constraints.Max.Y = gtx.Dp(progressBarHeight)
-				//		progress := float32(0.5) // Example progress value.
-				//		return material.ProgressBar(th, progress).Layout(gtx)
-				//	})
-				//}),
+				layout.Rigid(func(gtx C) D {
+					return layout.Inset{Left: unit.Dp(5), Right: unit.Dp(5), Top: unit.Dp(4), Bottom: unit.Dp(4)}.Layout(gtx, func(gtx C) D {
+						const progressBarHeight = 10
+						gtx.Constraints.Min.Y = gtx.Dp(progressBarHeight)
+						gtx.Constraints.Max.Y = gtx.Dp(progressBarHeight)
+						return material.ProgressBar(th, playbackProgress).Layout(gtx)
+					})
+				}),
 			)
 		}),
 		// Right column
