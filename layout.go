@@ -63,7 +63,39 @@ func render(gtx layout.Context, th *material.Theme, e app.FrameEvent) {
 				layout.Flexed(1, func(gtx C) D {
 					return renderWaveform(gtx, gtx.Constraints.Max.X, gtx.Constraints.Max.Y)
 				}),
-				// TODO: Track progress with progress bar bellow waveform
+				layout.Rigid(func(gtx C) D { // Mid buttons
+					return layout.Flex{
+						Axis:    layout.Horizontal,
+						Spacing: layout.SpaceSides,
+					}.Layout(gtx,
+						layout.Rigid(func(gtx C) D {
+							gtx.Constraints.Max.X = gtx.Dp(150)
+							return material.Button(th, &openButton, "Open").Layout(gtx)
+						}),
+						layout.Rigid(layout.Spacer{Width: spacing}.Layout),
+						layout.Rigid(func(gtx C) D {
+							if currentState == Playing {
+								return material.Button(th, &stopButton, "Stop").Layout(gtx)
+							}
+							return material.Button(th, &playButton, "Play").Layout(gtx)
+						}),
+						layout.Rigid(layout.Spacer{Width: spacing}.Layout),
+						layout.Rigid(func(gtx C) D {
+							return material.Button(th, &backButton, "Back").Layout(gtx)
+						}),
+						layout.Rigid(layout.Spacer{Width: spacing}.Layout),
+						layout.Rigid(func(gtx C) D {
+							return material.Button(th, &fwdButton, "Forward").Layout(gtx)
+						}),
+						layout.Rigid(layout.Spacer{Width: spacing}.Layout),
+						layout.Rigid(func(gtx C) D {
+							slider := material.Slider(th, &volumeSlider) // Default value set in Main
+							gtx.Constraints.Min.X = gtx.Dp(150)
+							gtx.Constraints.Max.X = gtx.Dp(150)
+							return slider.Layout(gtx)
+						}),
+					)
+				}),
 				layout.Rigid(func(gtx C) D {
 					return layout.Inset{Left: unit.Dp(5), Right: unit.Dp(5), Top: unit.Dp(4), Bottom: unit.Dp(4)}.Layout(gtx, func(gtx C) D {
 						const progressBarHeight = 10
@@ -71,38 +103,6 @@ func render(gtx layout.Context, th *material.Theme, e app.FrameEvent) {
 						gtx.Constraints.Max.Y = gtx.Dp(progressBarHeight)
 						return material.ProgressBar(th, playbackProgress).Layout(gtx)
 					})
-				}),
-			)
-		}),
-		// Right column
-		layout.Rigid(func(gtx C) D {
-			return layout.Flex{
-				Axis:    layout.Vertical,
-				Spacing: layout.SpaceStart,
-			}.Layout(gtx,
-				layout.Rigid(func(gtx C) D {
-					return material.Button(th, &openButton, "Open").Layout(gtx)
-				}),
-				layout.Rigid(layout.Spacer{Height: spacing}.Layout),
-				layout.Rigid(func(gtx C) D {
-					return material.Button(th, &backButton, "Back").Layout(gtx)
-				}),
-				layout.Rigid(layout.Spacer{Height: spacing}.Layout),
-				layout.Rigid(func(gtx C) D {
-					return material.Button(th, &fwdButton, "Forward").Layout(gtx)
-				}),
-				layout.Rigid(layout.Spacer{Height: spacing}.Layout),
-				layout.Rigid(func(gtx C) D {
-					if currentState == Playing {
-						return material.Button(th, &stopButton, "Stop").Layout(gtx)
-					}
-					return material.Button(th, &playButton, "Play").Layout(gtx)
-				}),
-				layout.Rigid(func(gtx C) D {
-					slider := material.Slider(th, &volumeSlider) // Default value set in Main
-					gtx.Constraints.Min.X = gtx.Dp(150)
-					gtx.Constraints.Max.X = gtx.Dp(150)
-					return slider.Layout(gtx)
 				}),
 			)
 		}),
