@@ -19,8 +19,8 @@ func renderWaveform(gtx layout.Context, width, height int) layout.Dimensions {
 		return layout.Dimensions{}
 	}
 
-	reduce := 1
-	numSamples := width / reduce // 1/4 sample per pixel TODO: Expose as performance setting
+	reduce := 2
+	numSamples := width / reduce // 1/2 sample per pixel TODO: Expose as performance setting
 	numBytes := numSamples * 2
 	if len(audioRingBuffer) < numBytes {
 		return layout.Dimensions{}
@@ -68,7 +68,7 @@ func renderWaveform(gtx layout.Context, width, height int) layout.Dimensions {
 	centerLinePath.MoveTo(f32.Pt(0, centerY))
 	centerLinePath.LineTo(f32.Pt(float32(width), centerY))
 	paint.FillShape(gtx.Ops,
-		color.NRGBA{R: 255, G: 0, B: 0, A: 255},
+		color.NRGBA{R: 0, G: 0, B: 0, A: 255},
 		clip.Stroke{
 			Path:  centerLinePath.End(),
 			Width: 1,
@@ -104,14 +104,29 @@ func renderWaveform(gtx layout.Context, width, height int) layout.Dimensions {
 
 	path.Close()
 
-	// Fill in the waveform.
-	paint.FillShape(gtx.Ops,
-		color.NRGBA{R: 255, G: 0, B: 0, A: 255},
-		clip.Stroke{
-			Path:  path.End(),
-			Width: float32(reduce),
-		}.Op())
+	strokeOp := clip.Stroke{
+		Path:  path.End(),
+		Width: float32(reduce),
+	}.Op()
 
+	paint.FillShape(gtx.Ops,
+		color.NRGBA{R: 0, G: 0, B: 0, A: 255},
+		strokeOp,
+	)
+
+	// Push same path a clipping region for colorization
+	clipStack := strokeOp.Push(gtx.Ops)
+	defer clipStack.Pop() // Ensure the clip is popped after drawing.
+
+	// Draw gradient on top of waveform
+	grad := paint.LinearGradientOp{
+		Stop1:  f32.Pt(0, 0),
+		Stop2:  f32.Pt(float32(gtx.Constraints.Max.X), float32(gtx.Constraints.Max.Y)),
+		Color1: color.NRGBA{R: 0, G: 255, B: 0, A: 155},
+		Color2: color.NRGBA{R: 0, G: 0, B: 255, A: 155},
+	}
+	grad.Add(gtx.Ops)
+	paint.PaintOp{}.Add(gtx.Ops)
 	return layout.Dimensions{Size: image.Point{X: width, Y: height}}
 }
 
