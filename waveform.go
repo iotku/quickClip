@@ -19,14 +19,14 @@ func renderWaveform(gtx layout.Context, width, height int) layout.Dimensions {
 		return layout.Dimensions{}
 	}
 
-	reduce := 2
+	reduce := 1
 	numSamples := width / reduce // 1/2 sample per pixel TODO: Expose as performance setting
 	numBytes := numSamples * 2
 	if len(audioRingBuffer) < numBytes {
 		return layout.Dimensions{}
 	}
 
-	// Start a few samples earlier than the latest sample.
+	// Where to start inside the ringBuffer
 	startIndex := (ringWritePos + bufferSize - numBytes) % bufferSize
 
 	// Handle potential wrap-around by splitting the read if necessary.
@@ -39,18 +39,6 @@ func renderWaveform(gtx layout.Context, width, height int) layout.Dimensions {
 		secondPart := audioRingBuffer[:numBytes-len(firstPart)]
 		combined := append(firstPart, secondPart...)
 		samples = bytesToInt16Slice(combined)
-	}
-
-	// Determine the maximum amplitude.
-	var maxAmp float32 = 32767
-	for _, s := range samples {
-		amp := float32(s)
-		if amp < 0 {
-			amp = -amp
-		}
-		if amp > maxAmp {
-			maxAmp = amp
-		}
 	}
 
 	// Pre-calculate drawing parameters
@@ -82,10 +70,13 @@ func renderWaveform(gtx layout.Context, width, height int) layout.Dimensions {
 		smoothedSamples = make([]float32, numSamples)
 	}
 
+	// divide by factor to fit within height of the component
+	var aReduceFactor float32 = 32767
+
 	// First, update smoothedSamples from the raw samples.
 	for i, s := range samples {
 		dbMin := -120.0 // Silence threshold
-		sampleFloat := float64(s) / float64(maxAmp)
+		sampleFloat := float64(s) / float64(aReduceFactor)
 
 		// Convert to dB, ensuring no log(0) issues
 		db := 20 * math.Log10(math.Max(1e-5, math.Abs(sampleFloat)))
