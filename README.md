@@ -14,6 +14,7 @@ A simple audio player built in Go, utilizing the Beep audio library for audio pl
 
 - Go (latest stable version)
 - [Beep](https://github.com/gopxl/beep) audio library
+- [Gio](https://gioui.org) GUI
 
 ### Clone the Repository
 
