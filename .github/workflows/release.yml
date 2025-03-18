@@ -18,7 +18,8 @@ jobs:
           sudo apt update
           sudo apt install -y libwayland-dev libx11-dev libxkbcommon-dev \
                               libgles2-mesa-dev libegl1-mesa-dev libxcursor-dev\
-                              libvulkan-dev libasound2-dev
+                              libvulkan-dev libasound2-dev libxkbcommon-x11-dev \
+                              libx11-xcb-dev
 
       - name: Set up Go
         uses: actions/setup-go@v5
