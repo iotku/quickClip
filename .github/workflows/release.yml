@@ -1,0 +1,92 @@
+name: Build and Release Gio App
+
+on:
+  push:
+    tags:
+      - 'v*'  # Trigger workflow on version tags like v1.0.0, v2.1.5, etc.
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y libwayland-dev libx11-dev libxkbcommon-dev \
+                              libgles2-mesa-dev libegl1-mesa-dev libxcursor-dev
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Build for Linux
+        run: GOOS=linux GOARCH=amd64 go build -o quickClip-linux
+
+      - name: Archive Linux binary
+        run: tar -czvf quickClip-linux.tar.gz quickClip-linux
+
+      - name: Upload Linux artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: myapp-linux
+          path: myapp-linux.tar.gz
+
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Build for Windows
+        run: go build -o quickClip-windows.exe
+
+      - name: Archive Windows binary
+        run: powershell Compress-Archive -Path quickClip-windows.exe -DestinationPath quickClip-windows.zip
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: quickClip-windows
+          path: quickClip-windows.zip
+
+  release:
+    needs: [build-linux, build-windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # Needed to create a release
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download Linux binary
+        uses: actions/download-artifact@v4
+        with:
+          name: quickClip-linux
+          path: .
+
+      - name: Download Windows binary
+        uses: actions/download-artifact@v4
+        with:
+          name: quickClip-windows
+          path: .
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            quickClip-linux.tar.gz
+            quickClip-windows.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
