@@ -1,6 +1,9 @@
 package main
 
 import (
+	"image/color"
+	"log"
+
 	"gioui.org/app"
 	"gioui.org/layout"
 	"gioui.org/op/paint"
@@ -8,18 +11,19 @@ import (
 	"gioui.org/widget"
 	"gioui.org/widget/material"
 	"gioui.org/x/explorer"
-	"image/color"
-	"log"
 )
 
-var fileDialog *explorer.Explorer // Initialized in Main
+var fileDialog *explorer.Explorer
 var openButton, backButton, fwdButton, playButton, stopButton widget.Clickable
 var volumeSlider widget.Float // widget state for the slider
 var playbackProgress float32
 
+type C = layout.Context
+type D = layout.Dimensions
+
 func openFileDialog(w *app.Window) {
 	if fileDialog == nil {
-		return
+		fileDialog = explorer.NewExplorer(w)
 	}
 
 	// Open file dialog for a single audio file

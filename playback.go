@@ -4,6 +4,10 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
+	"log"
+	"time"
+
 	"gioui.org/app"
 	"github.com/gopxl/beep/v2"
 	"github.com/gopxl/beep/v2/effects"
@@ -11,9 +15,6 @@ import (
 	"github.com/gopxl/beep/v2/mp3"
 	"github.com/gopxl/beep/v2/speaker"
 	"github.com/gopxl/beep/v2/wav"
-	"io"
-	"log"
-	"time"
 )
 
 var currentReader io.ReadCloser

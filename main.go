@@ -3,22 +3,18 @@
 package main
 
 import (
-	"github.com/gopxl/beep/v2/speaker"
 	"log"
 	"os"
 
+	"github.com/gopxl/beep/v2/speaker"
+
 	"gioui.org/app"
 	"gioui.org/font/gofont"
-	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/text"
 	"gioui.org/unit"
 	"gioui.org/widget/material"
-	"gioui.org/x/explorer"
 )
-
-type C = layout.Context
-type D = layout.Dimensions
 
 // Channel to signal when the UI is ready
 var uiReadyChan = make(chan struct{})
@@ -28,7 +24,6 @@ func main() {
 		w := new(app.Window)
 		w.Option(app.Title("QuickClip"))
 		w.Option(app.Size(unit.Dp(800), unit.Dp(400)))
-		fileDialog = explorer.NewExplorer(w)
 
 		// Notify that the UI is ready
 		close(uiReadyChan)

@@ -40,14 +40,14 @@ func eject() {
 }
 
 func forward() {
-	if currentUnit.forward() != nil {
+	if err := currentUnit.forward(); err != nil {
 		return
 	}
 	updateProgressBar(currentUnit)
 }
 
 func back() {
-	if currentUnit.back() != nil {
+	if err := currentUnit.back(); err != nil {
 		return
 	}
 	updateProgressBar(currentUnit)
