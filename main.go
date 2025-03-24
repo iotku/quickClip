@@ -1,12 +1,10 @@
-// SPDX-License-Identifier: Unlicense OR MIT
+// SPDX-License-Identifier: MIT
 
 package main
 
 import (
 	"log"
 	"os"
-
-	"github.com/gopxl/beep/v2/speaker"
 
 	"gioui.org/app"
 	"gioui.org/font/gofont"
@@ -38,15 +36,8 @@ func main() {
 	// Wait for UI to be ready before initializing the audio ctx so they can interact first with the UI
 	// This is critical to allow the interface to show up before being blocked on WASM clients
 	<-uiReadyChan
-
-	// NOTE: fixed buffer size for wasm MUST be divisible by 2
-	err := speaker.Init(44100, 8194)
-	if err != nil {
-		log.Fatalln("Speaker INIT failed!:", err)
-		return
-	}
+	initSpeaker()
 	app.Main()
-
 }
 
 // Launch Gio rendering loop

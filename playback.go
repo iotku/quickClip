@@ -20,6 +20,8 @@ import (
 var currentReader io.ReadCloser
 var currentUnit *playbackUnit
 
+var globalSampleRate beep.SampleRate = 44100
+
 const bufferSize = 44100 * 2 * 2 // 1 second of STEREO audio at 44.1kHz
 var audioRingBuffer = make([]byte, bufferSize)
 var ringWritePos = 0
@@ -36,6 +38,16 @@ const (
 )
 
 var currentState PlaybackState = NotInitialized
+
+// Initialize the global speaker, this should only need to run once
+func initSpeaker() {
+	// NOTE: fixed buffer size for wasm MUST be divisible by 2
+	err := speaker.Init(globalSampleRate, 8194)
+	if err != nil {
+		log.Fatalln("Speaker INIT failed!:", err)
+		return
+	}
+}
 
 func detectMagicBytes(r io.ReadSeeker) (string, error) {
 	const headerSize = 12
@@ -231,8 +243,8 @@ func newPlaybackUnit(reader io.ReadCloser) (*playbackUnit, error) {
 	}
 
 	unit.ctrl = &beep.Ctrl{Streamer: loopStreamer}
-	// Resample to hardcoded 44100
-	resampler := beep.Resample(4, unit.format.SampleRate, 44100, unit.ctrl) // TODO: remove magic number
+	// Resample to the Speaker's sample rate
+	resampler := beep.Resample(4, unit.format.SampleRate, globalSampleRate, unit.ctrl)
 	tap := &TapStreamer{s: resampler}
 	unit.volume = &effects.Volume{Streamer: tap}
 	unit.setVolume(float32(playbackVolume)) // set default volume
