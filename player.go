@@ -29,9 +29,6 @@ func eject() {
 		currentUnit.done <- true
 	}
 
-	// TODO: Does the old playback unit actually get garbage collected?
-	//       I suspect it just remains paused in memory...
-
 	// Reset any other relevant state
 	currentState = NotInitialized
 	resetVisualization() // Reset any ongoing visualization updates
