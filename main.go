@@ -3,6 +3,8 @@
 package main
 
 import (
+	"gioui.org/gesture"
+	"gioui.org/io/pointer"
 	"log"
 	"os"
 
@@ -16,6 +18,7 @@ import (
 
 // Channel to signal when the UI is ready
 var uiReadyChan = make(chan struct{})
+var click gesture.Click
 
 func main() {
 	go func() {
@@ -71,6 +74,38 @@ func loop(w *app.Window) error {
 			if volumeSlider.Update(gtx) {
 				currentUnit.setVolume(volumeSlider.Value)
 			}
+
+			event, _ := gtx.Event(
+				pointer.Filter{
+					Target: &progressClickable,
+					Kinds:  pointer.Press | pointer.Drag | pointer.Release | pointer.Cancel,
+				},
+			)
+			if progressBarEvt, ok := event.(pointer.Event); ok {
+				windowWidth := gtx.Constraints.Max.X - 10 // NOTE: we subtract left/right layout insets TODO: remove magic number
+				// Ratio of the progress bar to the window position (e.g. percentage through the bar from 0 to 1)
+				// Note that the progressBarEvt position is relative to the WIDGET not the overall window
+				ratioPos := progressBarEvt.Position.X / float32(windowWidth)
+
+				switch progressBarEvt.Kind {
+				case pointer.Press:
+					isManualSeeking = true
+					manualSeekPosition = ratioPos
+				case pointer.Drag:
+					manualSeekPosition = ratioPos
+				case pointer.Release: // TODO: doesn't always fire when leaving window, Leave evt fixes this but bad UX
+					isManualSeeking = false
+					currentUnit.seekFloat(ratioPos)
+					manualSeekPosition = ratioPos
+					playbackProgress = ratioPos
+				case pointer.Cancel: // user switched windows before release
+					isManualSeeking = false
+				default:
+					log.Println("Unknown pointer event", event)
+				}
+
+			}
+
 			render(gtx, th, evt)
 		}
 	}

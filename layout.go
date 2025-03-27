@@ -15,8 +15,11 @@ import (
 
 var fileDialog *explorer.Explorer
 var openButton, backButton, fwdButton, playButton, stopButton widget.Clickable
+var progressClickable widget.Clickable
 var volumeSlider widget.Float // widget state for the slider
 var playbackProgress float32
+var isManualSeeking bool
+var manualSeekPosition float32
 
 type C = layout.Context
 type D = layout.Dimensions
@@ -105,7 +108,17 @@ func render(gtx layout.Context, th *material.Theme, e app.FrameEvent) {
 						const progressBarHeight = 10
 						gtx.Constraints.Min.Y = gtx.Dp(progressBarHeight)
 						gtx.Constraints.Max.Y = gtx.Dp(progressBarHeight)
-						return material.ProgressBar(th, playbackProgress).Layout(gtx)
+						return progressClickable.Layout(gtx, func(gtx C) D {
+							return layout.Center.Layout(gtx, func(gtx C) D {
+								gtx2 := gtx
+								gtx2.Constraints.Min.Y = gtx.Dp(progressBarHeight)
+								gtx2.Constraints.Max.Y = gtx.Dp(progressBarHeight)
+								if isManualSeeking {
+									return material.ProgressBar(th, manualSeekPosition).Layout(gtx2)
+								}
+								return material.ProgressBar(th, playbackProgress).Layout(gtx2)
+							})
+						})
 					})
 				}),
 			)

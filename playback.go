@@ -151,6 +151,30 @@ func (p *playbackUnit) back() (err error) {
 	return err
 }
 
+// Seek to float position from 0.0 to 1.0 (e.g. from progress bar position)
+func (p *playbackUnit) seekFloat(ratio float32) (err error) {
+	if p == nil {
+		return nil
+	}
+
+	totalSamples := p.streamer.Len() - 1
+	if totalSamples <= 0 {
+		return nil
+	}
+	ratio = min(max(ratio, 0.0), 1.0) // Clamp to valid range
+	speaker.Lock()
+
+	newPos := int(ratio * float32(totalSamples))
+	newPos = max(newPos, 0)
+	newPos = min(newPos, p.streamer.Len()-1)
+	if err = p.streamer.Seek(newPos); err != nil {
+		log.Println("seekfloat error:", err)
+	}
+	speaker.Unlock()
+
+	return err
+}
+
 func (p *playbackUnit) setPaused(state bool) {
 	if p == nil {
 		return
