@@ -2,8 +2,8 @@ name: Deploy Gio WebApp
 
 on:
   push:
-    branches:
-      - main
+    tags:
+      - 'v*'  # Trigger workflow on version tags like v1.0.0, v2.1.5, etc.
   workflow_dispatch:
 
 permissions:
