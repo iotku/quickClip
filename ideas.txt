@@ -1,1 +1,0 @@
-make a sound recorder (e.g. early windows), automatically trim gaps in audio so you can record and keep recording new snippits of text (rollback)
