@@ -1,6 +1,9 @@
-# QuickClip: Audio Player with Waveform Visualization
+# QuickClip: Responsive Audio Player with Waveform Visualization
 
-A simple audio player built in Go, utilizing the Beep audio library for audio playback and the Gio UI Library for the GUI.
+A simple audio player built in Go, utilizing the Beep audio library for audio playback and the responsive Gio UI Library.
+
+![image](https://github.com/user-attachments/assets/3683c0da-2168-427c-afde-716c1dc75ae7)
+
 
 ## Features
 
