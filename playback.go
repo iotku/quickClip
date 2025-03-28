@@ -49,6 +49,7 @@ func initSpeaker() {
 	}
 }
 
+// Read the MagicBytes of the file to determine the fileType and return the file extension (e.g. ".wav" for wave files)
 func detectMagicBytes(r io.ReadSeeker) (string, error) {
 	const headerSize = 12
 	header := make([]byte, headerSize)
@@ -72,6 +73,7 @@ func detectMagicBytes(r io.ReadSeeker) (string, error) {
 	return fileType, nil
 }
 
+// Helper method to get the relevent file extension based on the magic bytes of the input bytes
 func determineFileType(header []byte) string {
 	switch {
 	case len(header) >= 12 && string(header[:4]) == "RIFF" && string(header[8:12]) == "WAVE":
@@ -96,8 +98,8 @@ func (s *seekableReadCloser) Close() error {
 	return nil // no-op; nothing to close for in-memory data
 }
 
+// Read all the content into memory and wrap in a seekable io.ReadSeeker
 func makeSeekable(r io.ReadCloser) (io.ReadSeeker, error) {
-	// Read the entire content into memory.
 	buf, err := io.ReadAll(r)
 	if err != nil {
 		return nil, fmt.Errorf("failed to buffer reader: %w", err)
@@ -115,6 +117,7 @@ type playbackUnit struct {
 	AudioType string // e.g. ".wav", ".flac", or ".mp3"
 }
 
+// Move the playback forward 5 seconds
 func (p *playbackUnit) forward() (err error) {
 	if p == nil {
 		return
@@ -133,6 +136,7 @@ func (p *playbackUnit) forward() (err error) {
 	return err
 }
 
+// Move the playback back 2.5 seconds
 func (p *playbackUnit) back() (err error) {
 	if p == nil {
 		return
@@ -223,6 +227,7 @@ func (p *playbackUnit) getProgressFloat() float32 {
 	return 0.0
 }
 
+// Create a new PlaybackUnit with the various decoders/streamers
 func newPlaybackUnit(reader io.ReadCloser) (*playbackUnit, error) {
 	var err error
 	unit := &playbackUnit{done: make(chan bool)}
