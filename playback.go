@@ -119,25 +119,12 @@ type playbackUnit struct {
 	Metadata  tag.Metadata
 }
 
-// Move the playback forward 5 seconds
-func (p *playbackUnit) forward() (err error) {
-	if p == nil {
-		return
-	}
-	return p.seek(5 * time.Second)
-}
-
-// Move the playback back 2.5 seconds
-func (p *playbackUnit) back() (err error) {
-	if p == nil {
-		return
-	}
-	return p.seek(-2500 * time.Millisecond)
-}
-
 // Move the playback position by provided d Duration
 // NOTE: will clamp within the bounds of the stream
 func (p *playbackUnit) seek(d time.Duration) (err error) {
+	if p == nil {
+		return fmt.Errorf("seek: playbackUnit was nil")
+	}
 	speaker.Lock()
 	newPos := p.streamer.Position()
 	newPos += p.format.SampleRate.N(d)
@@ -155,7 +142,7 @@ func (p *playbackUnit) seek(d time.Duration) (err error) {
 // Seek to float position from 0.0 to 1.0 (e.g. from progress bar position)
 func (p *playbackUnit) seekFloat(ratio float32) (err error) {
 	if p == nil {
-		return nil
+		return fmt.Errorf("seekFloat: playbackUnit was nil")
 	}
 
 	totalSamples := p.streamer.Len() - 1
@@ -327,6 +314,7 @@ func playAudio(w *app.Window) {
 	progressTicker := time.NewTicker(time.Second)
 	defer progressTicker.Stop()
 
+	// Wait for Tickers or playback done channel
 	for {
 		select {
 

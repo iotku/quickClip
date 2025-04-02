@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"time"
 
 	"gioui.org/app"
 )
@@ -37,14 +38,14 @@ func eject() {
 }
 
 func forward() {
-	if err := currentUnit.forward(); err != nil {
+	if err := currentUnit.seek(5 * time.Second); err != nil {
 		return
 	}
 	updateProgressBar(currentUnit)
 }
 
 func back() {
-	if err := currentUnit.back(); err != nil {
+	if err := currentUnit.seek(-2500 * time.Millisecond); err != nil {
 		return
 	}
 	updateProgressBar(currentUnit)
