@@ -128,13 +128,12 @@ func (p *playbackUnit) seek(d time.Duration) (err error) {
 	speaker.Lock()
 	newPos := p.streamer.Position()
 	newPos += p.format.SampleRate.N(d)
+
 	// Clamp the position to be within the stream
 	newPos = max(newPos, 0)
 	newPos = min(newPos, p.streamer.Len()-1)
 
-	if err = p.streamer.Seek(newPos); err != nil {
-		log.Println(err)
-	}
+	err = p.streamer.Seek(newPos)
 	speaker.Unlock()
 	return err
 }
@@ -155,9 +154,7 @@ func (p *playbackUnit) seekFloat(ratio float32) (err error) {
 	newPos := int(ratio * float32(totalSamples))
 	newPos = max(newPos, 0)
 	newPos = min(newPos, p.streamer.Len()-1)
-	if err = p.streamer.Seek(newPos); err != nil {
-		log.Println("seekfloat error:", err)
-	}
+	err = p.streamer.Seek(newPos)
 	speaker.Unlock()
 
 	return err

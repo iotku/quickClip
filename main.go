@@ -99,7 +99,10 @@ func loop(w *app.Window) error {
 					manualSeekPosition = ratioPos
 				case pointer.Release: // TODO: doesn't always fire when leaving window, Leave evt fixes this but bad UX
 					isManualSeeking = false
-					currentUnit.seekFloat(ratioPos)
+					err := currentUnit.seekFloat(ratioPos)
+					if err != nil {
+						log.Println("seekFloat error:", err)
+					}
 					manualSeekPosition = ratioPos
 					playbackProgress = ratioPos
 				case pointer.Cancel: // user switched windows before release
