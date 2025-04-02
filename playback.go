@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"gioui.org/app"
+	"github.com/dhowden/tag"
 	"github.com/gopxl/beep/v2"
 	"github.com/gopxl/beep/v2/effects"
 	"github.com/gopxl/beep/v2/flac"
@@ -115,6 +116,7 @@ type playbackUnit struct {
 	volume    *effects.Volume
 	done      chan bool
 	AudioType string // e.g. ".wav", ".flac", or ".mp3"
+	Metadata  tag.Metadata
 }
 
 // Move the playback forward 5 seconds
@@ -234,6 +236,18 @@ func newPlaybackUnit(reader io.ReadCloser) (*playbackUnit, error) {
 		return nil, err
 	}
 
+	unit.Metadata, err = tag.ReadFrom(seekableReader)
+	if err != nil {
+		log.Println("Error Reading Metadata: ", err)
+	} else {
+		log.Println("Read Metadata: ", unit.Metadata.Title())
+	}
+
+	_, err = seekableReader.Seek(0, io.SeekStart)
+	if err != nil {
+		log.Println("Couldn't reset seekableReader after reading tags!")
+	} // reset seek position
+
 	// Wrap seekableReader in a closer to satisfy mp3 decoder
 	rc := &seekableReadCloser{seekableReader}
 
@@ -291,13 +305,17 @@ func playAudio(w *app.Window) {
 	if err != nil {
 		log.Println("Couldn't create playback unit:", err)
 	}
+
 	log.Println("Play NOW")
 	currentUnit = playbackUnit
 	if playbackUnit == nil || playbackUnit.volume == nil {
 		log.Println("Playback unit streamer not available")
+		w.Option(app.Title("QuickClip -> Playback Unavailable"))
 		return
 	}
 	currentState = Playing
+
+	w.Option(app.Title("QuickClip -> " + currentUnit.Metadata.Artist() + " - " + currentUnit.Metadata.Title()))
 
 	speaker.Play(beep.Seq(playbackUnit.volume, beep.Callback(func() {
 		playbackUnit.done <- true
@@ -324,6 +342,7 @@ func playAudio(w *app.Window) {
 			resetVisualization()
 			resetProgressBar()
 			currentState = Finished
+			w.Option(app.Title("QuickClip -> Not Playing"))
 			w.Invalidate()
 			return
 		}

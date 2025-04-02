@@ -7,6 +7,7 @@ toolchain go1.24.1
 require (
 	gioui.org v0.8.0
 	gioui.org/x v0.8.1
+	github.com/dhowden/tag v0.0.0-20240417053706-3d75831295e8
 	github.com/gopxl/beep/v2 v2.1.1
 )
 
