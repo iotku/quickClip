@@ -311,18 +311,11 @@ func playAudio(w *app.Window) {
 	ticker := time.NewTicker(time.Millisecond * 16) // ~60 FPS
 	defer ticker.Stop()
 
-	progressTicker := time.NewTicker(time.Second)
-	defer progressTicker.Stop()
-
-	// Wait for Tickers or playback done channel
+	// Wait for Ticker or playback done channel
 	for {
 		select {
-
-		// Update playback progressbar
-		case <-progressTicker.C:
+		case <-ticker.C: // Force redraw at ticker interval
 			updateProgressBar(playbackUnit)
-
-		case <-ticker.C: // Force redraw at ticker interval for smooth waveform
 			w.Invalidate()
 
 		case <-playbackUnit.done:
