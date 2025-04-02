@@ -60,7 +60,11 @@ func loop(w *app.Window) error {
 				go openFileDialog(w)
 			}
 			if playButton.Clicked(gtx) {
-				play(w)
+				if currentState == NotInitialized || currentState == Finished {
+					go openFileDialog(w)
+				} else {
+					play(w)
+				}
 			}
 			if stopButton.Clicked(gtx) {
 				stop()
