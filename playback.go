@@ -73,7 +73,7 @@ func detectMagicBytes(r io.ReadSeeker) (string, error) {
 	return fileType, nil
 }
 
-// Helper method to get the relevent file extension based on the magic bytes of the input bytes
+// Helper method to get the relevant file extension based on the magic bytes of the input bytes
 func determineFileType(header []byte) string {
 	switch {
 	case len(header) >= 12 && string(header[:4]) == "RIFF" && string(header[8:12]) == "WAVE":
@@ -122,18 +122,7 @@ func (p *playbackUnit) forward() (err error) {
 	if p == nil {
 		return
 	}
-	speaker.Lock()
-	newPos := p.streamer.Position()
-	newPos += p.format.SampleRate.N(time.Second * 5)
-	// Clamp the position to be within the stream
-	newPos = max(newPos, 0)
-	newPos = min(newPos, p.streamer.Len()-1)
-
-	if err = p.streamer.Seek(newPos); err != nil {
-		log.Println(err)
-	}
-	speaker.Unlock()
-	return err
+	return p.seek(5 * time.Second)
 }
 
 // Move the playback back 2.5 seconds
@@ -141,9 +130,15 @@ func (p *playbackUnit) back() (err error) {
 	if p == nil {
 		return
 	}
+	return p.seek(-2500 * time.Millisecond)
+}
+
+// Move the playback position by provided d Duration
+// NOTE: will clamp within the bounds of the stream
+func (p *playbackUnit) seek(d time.Duration) (err error) {
 	speaker.Lock()
 	newPos := p.streamer.Position()
-	newPos -= p.format.SampleRate.N(2500 * time.Millisecond)
+	newPos += p.format.SampleRate.N(d)
 	// Clamp the position to be within the stream
 	newPos = max(newPos, 0)
 	newPos = min(newPos, p.streamer.Len()-1)
