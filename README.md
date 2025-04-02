@@ -2,6 +2,7 @@
 
 A simple audio player built in Go, utilizing the Beep audio library for audio playback and the responsive Gio UI Library.
 
+[Online DEMO](https://iotku.pw/quickClip/) (Audio files are read *locally* and are **not** sent to a server)
 ![image](https://github.com/user-attachments/assets/3683c0da-2168-427c-afde-716c1dc75ae7)
 
 
@@ -13,11 +14,12 @@ A simple audio player built in Go, utilizing the Beep audio library for audio pl
 
 ## Installation
 
-### Prerequisites
+### Dependencies
 
-- Go (latest stable version)
-- [Beep](https://github.com/gopxl/beep) audio library
-- [Gio](https://gioui.org) GUI
+- [Go](https://go.dev/) Programming Language
+- [Beep](https://github.com/gopxl/beep) Audio Playback
+- [Gio](https://gioui.org) GUI and Layout
+- [dhowden's Tag libaray](https://github.com/dhowden/tag) - Audio Metadata
 
 ### Clone the Repository
 
@@ -54,4 +56,5 @@ This project is licensed under the MIT License. See `LICENSE` for details.
 
 - [Beep](https://github.com/gopxl/beep) for audio processing, which uses [Oto](https://github.com/hajimehoshi/oto) as its underlying audio library.
 - [Gio](https://gioui.org) for the graphical user interface.
+- [tag](https://github.com/dhowden/tag) for reading audio metadata (such as Artist & Title)
 
