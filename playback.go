@@ -301,6 +301,8 @@ func playAudio(w *app.Window) {
 
 	if currentUnit.Metadata != nil { // NOTE: nil if no tags exist in file
 		w.Option(app.Title("QuickClip -> " + currentUnit.Metadata.Artist() + " - " + currentUnit.Metadata.Title()))
+	} else {
+		w.Option(app.Title("QuickClip"))
 	}
 
 	speaker.Play(beep.Seq(playbackUnit.volume, beep.Callback(func() {
