@@ -222,9 +222,9 @@ func newPlaybackUnit(reader io.ReadCloser) (*playbackUnit, error) {
 
 	unit.Metadata, err = tag.ReadFrom(seekableReader)
 	if err != nil {
-		log.Println("Error Reading Metadata: ", err)
+		log.Println("Error Reading Metadata:", err)
 	} else {
-		log.Println("Read Metadata: ", unit.Metadata.Title())
+		log.Println("Read Metadata:", unit.Metadata.Title())
 	}
 
 	_, err = seekableReader.Seek(0, io.SeekStart)
@@ -299,7 +299,9 @@ func playAudio(w *app.Window) {
 	}
 	currentState = Playing
 
-	w.Option(app.Title("QuickClip -> " + currentUnit.Metadata.Artist() + " - " + currentUnit.Metadata.Title()))
+	if currentUnit.Metadata != nil { // NOTE: nil if no tags exist in file
+		w.Option(app.Title("QuickClip -> " + currentUnit.Metadata.Artist() + " - " + currentUnit.Metadata.Title()))
+	}
 
 	speaker.Play(beep.Seq(playbackUnit.volume, beep.Callback(func() {
 		playbackUnit.done <- true
