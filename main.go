@@ -5,6 +5,7 @@ package main
 import (
 	"gioui.org/gesture"
 	"gioui.org/io/pointer"
+	"image/color"
 	"log"
 	"os"
 
@@ -46,6 +47,8 @@ func main() {
 // Launch Gio rendering loop
 func loop(w *app.Window) error {
 	th := material.NewTheme()
+	th.Fg = color.NRGBA{R: 255, G: 255, B: 255, A: 255} // White foreground text
+	th.Bg = color.NRGBA{R: 30, G: 30, B: 30, A: 255}    // dark gray background
 	th.Shaper = text.NewShaper(text.WithCollection(gofont.Collection()))
 	volumeSlider.Value = float32(playbackVolume) // INITIAL VOLUME
 	var ops op.Ops

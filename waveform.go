@@ -12,6 +12,8 @@ import (
 )
 
 var smoothedSamples []float32
+var waveformColor1 = color.NRGBA{R: 0, G: 255, B: 0, A: 155}
+var waveformColor2 = color.NRGBA{R: 0, G: 0, B: 255, A: 155}
 
 func renderWaveform(gtx layout.Context, width, height int) layout.Dimensions {
 	// Early exit if there isn't enough audio data.
@@ -113,8 +115,8 @@ func renderWaveform(gtx layout.Context, width, height int) layout.Dimensions {
 	grad := paint.LinearGradientOp{
 		Stop1:  f32.Pt(0, 0),
 		Stop2:  f32.Pt(float32(gtx.Constraints.Max.X), float32(gtx.Constraints.Max.Y)),
-		Color1: color.NRGBA{R: 0, G: 255, B: 0, A: 155},
-		Color2: color.NRGBA{R: 0, G: 0, B: 255, A: 155},
+		Color1: waveformColor1,
+		Color2: waveformColor2,
 	}
 	grad.Add(gtx.Ops)
 	paint.PaintOp{}.Add(gtx.Ops)
