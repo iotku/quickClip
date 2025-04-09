@@ -27,6 +27,7 @@ var manualSeekPosition float32
 var itemSpacing = unit.Dp(5)
 
 var showDialog widget.Bool
+var isHqMode widget.Bool
 
 type C = layout.Context
 type D = layout.Dimensions
@@ -166,7 +167,7 @@ func renderDialog(gtx layout.Context, th *material.Theme) layout.Dimensions {
 	// Draw a semi-transparent overlay background.
 	paint.Fill(gtx.Ops, color.NRGBA{R: 0, G: 0, B: 0, A: 180})
 	const width = 300
-	const height = 450
+	const height = 485
 	// Position the dialog with some offset from the screen edges.
 	return layout.Inset{
 		Left: unit.Dp(gtx.Constraints.Max.X / 2),
@@ -223,6 +224,9 @@ func renderDialog(gtx layout.Context, th *material.Theme) layout.Dimensions {
 					dims := ps2.Layout(gtx)
 					waveformColor2 = ps2.State.Color()
 					return dims
+				}),
+				layout.Rigid(func(gtx C) D {
+					return material.CheckBox(th, &isHqMode, "HQ Mode").Layout(gtx)
 				}),
 			)
 		})

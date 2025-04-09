@@ -21,8 +21,11 @@ func renderWaveform(gtx layout.Context, width, height int) layout.Dimensions {
 		return layout.Dimensions{}
 	}
 
-	reduce := 1
-	numSamples := width / reduce // 1/2 sample per pixel TODO: Expose as performance setting
+	reduce := 4
+	if isHqMode.Value {
+		reduce = 1
+	}
+	numSamples := width / reduce // 1/4 sample per pixel TODO: Expose as performance setting
 	numBytes := numSamples * 2
 	if len(audioRingBuffer) < numBytes {
 		return layout.Dimensions{}
@@ -99,7 +102,7 @@ func renderWaveform(gtx layout.Context, width, height int) layout.Dimensions {
 
 	strokeOp := clip.Stroke{
 		Path:  path.End(),
-		Width: float32(reduce),
+		Width: step,
 	}.Op()
 
 	paint.FillShape(gtx.Ops,
