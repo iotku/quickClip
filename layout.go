@@ -3,7 +3,8 @@ package main
 import (
 	"fmt"
 	"gioui.org/app"
-	"gioui.org/font/gofont"
+	_ "gioui.org/font/gofont"
+	"gioui.org/font/opentype"
 	"gioui.org/layout"
 	"gioui.org/op/clip"
 	"gioui.org/op/paint"
@@ -13,6 +14,7 @@ import (
 	"gioui.org/widget/material"
 	"gioui.org/x/colorpicker"
 	"gioui.org/x/explorer"
+	"golang.org/x/image/font/gofont/gomono"
 	"image"
 	"image/color"
 	"log"
@@ -35,6 +37,30 @@ type C = layout.Context
 type D = layout.Dimensions
 
 func init() {
+	//Parse the GoMono TTF data.
+	face, err := opentype.Parse(gomono.TTF)
+	if err != nil {
+		log.Fatalf("failed to parse GoMono TTF: %v", err)
+	}
+
+	monoCollection := []text.FontFace{ // wrap as a collection
+		{
+			Font: face.Font(),
+			Face: face,
+		},
+	}
+
+	// TODO: Currently if we set the waveform color inside render dialog we can't type values
+	// This definitely is not the proper method of setting up the color pickers...
+	th := material.NewTheme()
+	th.Shaper = text.NewShaper(text.WithCollection(monoCollection))
+	th.Fg = color.NRGBA{R: 0xff, G: 0xff, B: 0xff, A: 0xff}
+	// TODO: currently theme visability is poor (!)
+	ps1 = colorpicker.Picker(th, &mState1, "Left")
+	ps2 = colorpicker.Picker(th, &mState2, "Right")
+	ps1.SetColor(waveformColor1)
+	ps2.SetColor(waveformColor2)
+
 	isHqMode.Value = runtime.GOOS != "js" // Default to HQ mode on non-wasm
 }
 
@@ -157,19 +183,6 @@ var mState1 colorpicker.State
 var mState2 colorpicker.State
 var ps1 colorpicker.PickerStyle
 var ps2 colorpicker.PickerStyle
-
-func init() {
-	// TODO: Currently if we set the waveform color inside render dialog we can't type values
-	// This definitely is not the proper method of setting up the color pickers...
-	th := material.NewTheme()
-	th.Shaper = text.NewShaper(text.WithCollection(gofont.Collection()))
-	th.Fg = color.NRGBA{R: 0xff, G: 0xff, B: 0xff, A: 0xff}
-	// TODO: currently theme visability is poor (!)
-	ps1 = colorpicker.Picker(th, &mState1, "Left")
-	ps2 = colorpicker.Picker(th, &mState2, "Right")
-	ps1.SetColor(waveformColor1)
-	ps2.SetColor(waveformColor2)
-}
 
 func renderDialog(gtx layout.Context, th *material.Theme) layout.Dimensions {
 	// Draw a semi-transparent overlay background.
