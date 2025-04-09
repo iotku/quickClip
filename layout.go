@@ -2,19 +2,21 @@ package main
 
 import (
 	"fmt"
-	"gioui.org/op/clip"
-	"gioui.org/x/colorpicker"
-	"image"
-	"image/color"
-	"log"
-
 	"gioui.org/app"
+	"gioui.org/font/gofont"
 	"gioui.org/layout"
+	"gioui.org/op/clip"
 	"gioui.org/op/paint"
+	"gioui.org/text"
 	"gioui.org/unit"
 	"gioui.org/widget"
 	"gioui.org/widget/material"
+	"gioui.org/x/colorpicker"
 	"gioui.org/x/explorer"
+	"image"
+	"image/color"
+	"log"
+	"runtime"
 )
 
 var fileDialog *explorer.Explorer
@@ -31,6 +33,10 @@ var isHqMode widget.Bool
 
 type C = layout.Context
 type D = layout.Dimensions
+
+func init() {
+	isHqMode.Value = runtime.GOOS != "js" // Default to HQ mode on non-wasm
+}
 
 func openFileDialog(w *app.Window) {
 	if fileDialog == nil {
@@ -156,7 +162,9 @@ func init() {
 	// TODO: Currently if we set the waveform color inside render dialog we can't type values
 	// This definitely is not the proper method of setting up the color pickers...
 	th := material.NewTheme()
-	// TODO: currently theme disability is poor (!)
+	th.Shaper = text.NewShaper(text.WithCollection(gofont.Collection()))
+	th.Fg = color.NRGBA{R: 0xff, G: 0xff, B: 0xff, A: 0xff}
+	// TODO: currently theme visability is poor (!)
 	ps1 = colorpicker.Picker(th, &mState1, "Left")
 	ps2 = colorpicker.Picker(th, &mState2, "Right")
 	ps1.SetColor(waveformColor1)
@@ -166,66 +174,58 @@ func init() {
 func renderDialog(gtx layout.Context, th *material.Theme) layout.Dimensions {
 	// Draw a semi-transparent overlay background.
 	paint.Fill(gtx.Ops, color.NRGBA{R: 0, G: 0, B: 0, A: 180})
-	const width = 300
-	const height = 485
-	// Position the dialog with some offset from the screen edges.
+	const width = 500
+	const height = 270
+	// Dialog position offset
 	return layout.Inset{
-		Left: unit.Dp(gtx.Constraints.Max.X / 2),
+		Left: unit.Dp(gtx.Constraints.Max.X/2 - width/2),
 		Top:  unit.Dp(gtx.Constraints.Max.Y) - unit.Dp(height) - unit.Dp(itemSpacing),
 	}.Layout(gtx, func(gtx C) D {
 		size := image.Pt(gtx.Dp(width), gtx.Dp(height))
-		// Define a rounded rectangle for the dialog.
-		rect := clip.RRect{
+		rect := clip.RRect{ // Rounded rectangle for the dialog.
 			Rect: image.Rectangle{Max: size},
 			SE:   gtx.Dp(12), SW: gtx.Dp(12),
 			NE: gtx.Dp(12), NW: gtx.Dp(12),
 		}
-		// Paint the dialog's background.
-		paint.FillShape(gtx.Ops, th.Bg, rect.Op(gtx.Ops))
+		paint.FillShape(gtx.Ops, th.Bg, rect.Op(gtx.Ops)) // Dialog Background
 
 		// Use an inset to provide inner margins.
 		return layout.Inset{
-			Top: unit.Dp(20), Bottom: unit.Dp(20),
-			Left: unit.Dp(16), Right: unit.Dp(16),
+			Top:    unit.Dp(20),
+			Bottom: unit.Dp(20),
+			Left:   unit.Dp(16),
+			Right:  unit.Dp(16),
 		}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-			// Arrange elements vertically.
 			return layout.Flex{
 				Axis:    layout.Vertical,
 				Spacing: layout.SpaceEvenly,
 			}.Layout(gtx,
-				// Header text.
 				layout.Rigid(material.Body1(th, "Waveform Colors:").Layout),
-				// Add some spacing.
 				layout.Rigid(layout.Spacer{Height: itemSpacing}.Layout),
-				// More spacing between the mux and the color display.
+				// Side x Side color pickers
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					const totalWidth = width - (16 * 2) // dialog width - left/right inset
+					return layout.Flex{
+						Axis:    layout.Horizontal,
+						Spacing: layout.SpaceBetween,
+					}.Layout(gtx,
+						// First color picker.
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							gtx.Constraints.Max.X = gtx.Dp(totalWidth / 2)
+							dims := ps1.Layout(gtx)
+							waveformColor1 = ps1.State.Color()
+							return dims
+						}),
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							gtx.Constraints.Max.X = gtx.Dp(totalWidth / 2)
+							dims := ps2.Layout(gtx)
+							waveformColor2 = ps2.State.Color()
+							return dims
+						}),
+					)
+				}),
 				layout.Rigid(layout.Spacer{Height: itemSpacing}.Layout),
-
-				// Example: display the first waveform color as a square.
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return displayColorSquare(gtx, th, waveformColor1)
-				}),
-
-				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					// Limit the width to the dialog's width minus padding
-					const maxWidth = 300 - (16 * 2) // dialog width - left/right inset
-					gtx.Constraints.Max.X = gtx.Dp(maxWidth)
-					dims := ps1.Layout(gtx)
-					waveformColor1 = ps1.State.Color()
-					return dims
-				}),
-				// Display the second waveform color.
-				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return displayColorSquare(gtx, th, waveformColor2)
-				}),
-				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					// Limit the width to the dialog's width minus padding
-					const maxWidth = 300 - (16 * 2) // dialog width - left/right inset
-					gtx.Constraints.Max.X = gtx.Dp(maxWidth)
-					dims := ps2.Layout(gtx)
-					waveformColor2 = ps2.State.Color()
-					return dims
-				}),
-				layout.Rigid(func(gtx C) D {
 					return material.CheckBox(th, &isHqMode, "HQ Mode").Layout(gtx)
 				}),
 			)
