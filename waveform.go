@@ -12,8 +12,8 @@ import (
 )
 
 var smoothedSamples []float32
-var waveformColor1 = color.NRGBA{R: 0, G: 255, B: 0, A: 155}
-var waveformColor2 = color.NRGBA{R: 0, G: 0, B: 255, A: 155}
+var waveformColor1 = color.NRGBA{R: 0, G: 255, B: 0, A: 255}
+var waveformColor2 = color.NRGBA{R: 0, G: 0, B: 255, A: 255}
 
 func renderWaveform(gtx layout.Context, width, height int) layout.Dimensions {
 	// Early exit if there isn't enough audio data.
