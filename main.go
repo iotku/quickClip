@@ -80,6 +80,10 @@ func loop(w *app.Window) error {
 				currentUnit.setVolume(volumeSlider.Value)
 			}
 
+			if showDialog.Pressed() {
+				w.Invalidate() // Show dialog immediately even if waveform isn't invalidating during playback
+			}
+
 			event, _ := gtx.Event(
 				pointer.Filter{
 					Target: &progressClickable,
