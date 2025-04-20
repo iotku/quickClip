@@ -3,7 +3,6 @@
 package main
 
 import (
-	"gioui.org/gesture"
 	"gioui.org/io/pointer"
 	"image/color"
 	"log"
@@ -19,7 +18,6 @@ import (
 
 // Channel to signal when the UI is ready
 var uiReadyChan = make(chan struct{})
-var click gesture.Click
 
 func main() {
 	go func() {

@@ -109,14 +109,13 @@ func render(gtx layout.Context, th *material.Theme, e app.FrameEvent) {
 					return layout.Stack{}.Layout(gtx,
 						layout.Expanded(func(gtx C) D {
 							return renderWaveform(gtx, gtx.Constraints.Max.X, gtx.Constraints.Max.Y)
-						}),
-						layout.Stacked(func(gtx C) D {
-							if showDialog.Value {
-								return renderDialog(gtx, th)
-							}
-							return layout.Dimensions{}
-						}),
-					)
+						}))
+				}),
+				layout.Rigid(func(gtx C) D {
+					if showDialog.Value {
+						return renderDialog(gtx, th)
+					}
+					return layout.Dimensions{}
 				}),
 				layout.Rigid(func(gtx C) D { // Mid buttons
 					return layout.Flex{
@@ -190,10 +189,7 @@ func renderDialog(gtx layout.Context, th *material.Theme) layout.Dimensions {
 	const width = 500
 	const height = 270
 	// Dialog position offset
-	return layout.Inset{
-		Left: unit.Dp(gtx.Constraints.Max.X/2 - width/2),
-		Top:  unit.Dp(gtx.Constraints.Max.Y) - unit.Dp(height) - unit.Dp(itemSpacing),
-	}.Layout(gtx, func(gtx C) D {
+	return layout.Center.Layout(gtx, func(gtx C) D {
 		size := image.Pt(gtx.Dp(width), gtx.Dp(height))
 		rect := clip.RRect{ // Rounded rectangle for the dialog.
 			Rect: image.Rectangle{Max: size},
@@ -210,8 +206,9 @@ func renderDialog(gtx layout.Context, th *material.Theme) layout.Dimensions {
 			Right:  unit.Dp(16),
 		}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{
-				Axis:    layout.Vertical,
-				Spacing: layout.SpaceEvenly,
+				Axis:      layout.Vertical,
+				Spacing:   layout.SpaceAround,
+				Alignment: layout.Middle,
 			}.Layout(gtx,
 				layout.Rigid(material.Body1(th, "Waveform Colors:").Layout),
 				layout.Rigid(layout.Spacer{Height: itemSpacing}.Layout),
@@ -219,8 +216,9 @@ func renderDialog(gtx layout.Context, th *material.Theme) layout.Dimensions {
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					const totalWidth = width - (16 * 2) // dialog width - left/right inset
 					return layout.Flex{
-						Axis:    layout.Horizontal,
-						Spacing: layout.SpaceBetween,
+						Axis:      layout.Horizontal,
+						Spacing:   layout.SpaceStart,
+						Alignment: layout.Middle,
 					}.Layout(gtx,
 						// First color picker.
 						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
