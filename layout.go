@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"gioui.org/app"
 	_ "gioui.org/font/gofont"
 	"gioui.org/font/opentype"
@@ -242,39 +241,4 @@ func renderDialog(gtx layout.Context, th *material.Theme) layout.Dimensions {
 			)
 		})
 	})
-}
-
-func renderColorSquare(gtx layout.Context, col color.NRGBA) layout.Dimensions {
-	boxSize := gtx.Dp(25)
-	rect := image.Rect(0, 0, boxSize, boxSize)
-
-	// Push the clip and defer the pop
-	defer clip.Rect(rect).Push(gtx.Ops).Pop()
-
-	paint.Fill(gtx.Ops, col)
-
-	return layout.Dimensions{Size: image.Pt(boxSize, boxSize)}
-}
-
-func displayColorSquare(gtx layout.Context, th *material.Theme, color color.NRGBA) layout.Dimensions {
-	return layout.Flex{
-		Axis:    layout.Vertical,
-		Spacing: layout.SpaceEvenly,
-	}.Layout(gtx,
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return layout.Flex{
-				Axis:    layout.Horizontal,
-				Spacing: layout.SpaceAround,
-			}.Layout(gtx,
-				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return renderColorSquare(gtx, color) // Use passed-in color
-				}),
-				layout.Rigid(layout.Spacer{Width: itemSpacing}.Layout),
-				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					s := fmt.Sprintf("R: %d, G: %d, B: %d, A: %d", color.R, color.G, color.B, color.A)
-					return material.Body2(th, s).Layout(gtx)
-				}),
-			)
-		}),
-	)
 }
