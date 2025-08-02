@@ -50,6 +50,9 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: '1.21'
+      
+      - name: Install `gogio`
+        run: go install gioui.org/cmd/gogio@latest
 
       - name: Build for Windows
         run: gogio -target=windows -buildmode=exe -icon="icon/icon.png" -arch=amd64 -o quickClip-windows.exe .
