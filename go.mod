@@ -9,6 +9,7 @@ require (
 	gioui.org/x v0.8.1
 	github.com/dhowden/tag v0.0.0-20240417053706-3d75831295e8
 	github.com/gopxl/beep/v2 v2.1.1
+	golang.org/x/image v0.23.0
 )
 
 require (
@@ -26,7 +27,6 @@ require (
 	github.com/pkg/errors v0.9.1 // indirect
 	golang.org/x/exp v0.0.0-20240707233637-46b078467d37 // indirect
 	golang.org/x/exp/shiny v0.0.0-20240707233637-46b078467d37 // indirect
-	golang.org/x/image v0.23.0 // indirect
 	golang.org/x/sys v0.25.0 // indirect
 	golang.org/x/text v0.21.0 // indirect
 )

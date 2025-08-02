@@ -51,7 +51,7 @@ jobs:
           go-version: '1.21'
 
       - name: Build for Windows
-        run: go build -o quickClip-windows.exe
+        run: gogio -target=windows -buildmode=exe -icon="icon/icon.png" -arch=amd64 -o quickClip-windows.exe .
 
       - name: Archive Windows binary
         run: powershell Compress-Archive -Path quickClip-windows.exe -DestinationPath quickClip-windows.zip
