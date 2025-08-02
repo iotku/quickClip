@@ -85,12 +85,34 @@ jobs:
           name: quickClip-windows
           path: .
 
+      - name: Set release metadata
+        id: release_info
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            TAG_NAME="${GITHUB_REF##*/}"
+            RELEASE_NAME="$TAG_NAME"
+            DRAFT=false
+            PRERELEASE=false
+          else
+            TAG_NAME=""
+            SHORT_SHA=$(git rev-parse --short HEAD)
+            RELEASE_NAME="Commit $SHORT_SHA"
+            DRAFT=true
+            PRERELEASE=true
+          fi
+
+          echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
+          echo "name=$RELEASE_NAME" >> $GITHUB_OUTPUT
+          echo "draft=$DRAFT" >> $GITHUB_OUTPUT
+          echo "prerelease=$PRERELEASE" >> $GITHUB_OUTPUT
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          draft: ${{ steps.release_info.outputs.draft }}
+          prerelease: ${{ steps.release_info.outputs.prerelease }}
           files: |
             quickClip-linux.tar.gz
             quickClip-windows.zip
-          draft: ${{ github.event_name == 'workflow_dispatch' }} # Make release draft if manually triggered
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
