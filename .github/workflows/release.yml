@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - 'v*'  # Trigger workflow on version tags like v1.0.0, v2.1.5, etc.
+  workflow_dispatch:  # Manual Trigger should make DRAFT release
 
 jobs:
   build-linux:
@@ -90,5 +91,6 @@ jobs:
           files: |
             quickClip-linux.tar.gz
             quickClip-windows.zip
+          draft: ${{ github.event_name == 'workflow_dispatch' }} # Make release draft if manually triggered
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
