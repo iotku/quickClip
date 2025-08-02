@@ -112,6 +112,7 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          name: ${{ steps.release_info.outputs.name }}
           draft: ${{ steps.release_info.outputs.draft }}
           prerelease: ${{ steps.release_info.outputs.prerelease }}
           files: |
