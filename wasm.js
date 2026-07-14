@@ -1,5 +1,5 @@
 (() => {
-    window.go = {argv: [], env: {}, importObject: {go: {}}};
+    window.go = {argv: [], env: {}, importObject: {go: {}, gojs: {}}};
 	const argv = new URLSearchParams(location.search).get("argv");
 	if (argv) {
 		window.go["argv"] = argv.split(" ");
